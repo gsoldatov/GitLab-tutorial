@@ -7,61 +7,57 @@
 - configure jobs for deploying:
     - blue / green deployment (Nginx + 2 API containers + db container) on the same machine (separately from GL container(-s));
     - jobs:
+        - build an image for a commit;
         - deploy a commit to blue / green & switch between containers;
         - upgrade / downgrade to a specific db migration;
-? configure additional jobs:
-    ? security checks (SAST scan);
-    ? GitLab cleanup;
-    ? automatic versioning;
+- use-case scenario harnesses (scripts + manual instructions for adding merge requests, deploying to production, migrating db).
+
+Additional:
+    - security checks (SAST scan);
+    - automatic versioning;
+    ? GitLab & Docker cleanup;
 
 # Detailed To-Dos
 
 - setup Gitlab CI / CD:
-    - containerized deployment;
-    - configure (add an idempotent bash script):
+    - `gitlab/.env` for keeping all GitLab-related documentation (add `gitlab/.env.example` as a reference);
+    - containerized deployment:
+        - pinned image tag;
+        - tuned `gitlab.rb` (populate from .env, minimize RAM consumption);
+    - configure (add idempotent bash script(-s)):
         - auth (add GitLab admin, project owner and developer);
-        - containerized runner executor for the project;
-        ? environments;     // tests should be done in runner, prod should be run via Docker, so not needed?
-        ???
+        - containerized runner executor for the project (instance-scoped, Docker executor);
+        - render `gitlab.rb` & runner config from `gitlab/.env`;
+    - no environments;      // deployment state is the nginx config
+    - no CI/CD variables;     // no registry; prod credentials live in the compose file
 
 - setup project:
     - store project configuration:
-        - project configuration itself should be in a .env file inside its dir;
-        - TODO specify a way to store configurations used in different jobs:
-            - use cases:
-                - tests;    // may need to specify test db URL, when running it in a different container
-                - db migrations in prod;        // need db URL and credentials
-                - deploying an app in prod;     // need to provide full configuration to the app
-            ? setup variables in GitLab when configuring project;
-            ? other options for passing variables;
+        - `project/.env` with example file for configuration;
+        - testing configuration may be partially or fully overridden by GitLab;
+        - deployment configuration may be partially or fully overridden by docker-compose.yml;
 
     - project source code:
         - simple FastAPI app:
-            - read configuration via .env;
-            - Postgres as DB + SQLAlchemy;
+            - read configuration with Pydantic Settings;
+            - Postgres as DB + async SQLAlchemy & Alembic;
             - a single `users` table with Alembic migration;
             - app setup & teardown;
-            - CRUD operations for the `users` table;
+            - create operation for the `users` table;
+            - `GET /health`;        // used as the deployment readiness gate
+            - Dockerfile;
         - tests:
             - fixtures and test utilities;
-            - integration tests for `users` route handlers in separate files;
-    
-    - additional branches for testing:
+            - integration tests for `users` route handler;
+            - run against a per-job `postgres` service container;
+
+    - additional branches for testing (scenarios, deferred):
         - a valid feature branch:
-            - `items` table + CRUD route handlers;
-            - integration tests for new route handlers;;
+            - `items` table + create route handler;
+            - integration tests for new route handler;
         - an invalid feature branch:
             - additional test case that intentionally fails;
-    
-    - setup project copies:
-        - add a bash script for to create or reset repo copies;
-        - repo copies are stored inside a gitignored directory;
-        - dev repo copy;
-        ? owner repo copy;   // if it's needed for the merge request
-        ? gitlab repo copy:
-            - or add it to gitlab's storage;
-            - GitLab copy should have main branch only and any applied merges should be reset;
-        ? add dev / owner containers;   // or interact with it from localhost
+        x a branch with a new db migration; // should be covered by valid feature branch
 
 - implement basic merge request flow:
     - branch protection:
@@ -70,37 +66,40 @@
     - jobs in the flow:
         - linting & type checking;
         - tests;
-    
-    - should forbid merge if any errors occur;
+    - should forbid merge if any errors occur ("Pipelines must succeed");
 
 - configure deployment flow for the project:
-    - add blue-green deployment;    // Nginx + 2 containers
+    - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
     - deployment flow:
-        - is parametrized with commit to deploy & flag to deploy blue or green container;
-        - deploy a container with a specific commit;
-        - redirect nginx to the correct container after its parametrized;
+        - triggered manually;
+        - is parametrized with commit to deploy & flag to deploy blue or green container (manual job, runtime variables);
+        - build a production image for the specified commit;
+        - start the target container and wait for `GET /health`;
+        - redirect nginx to the correct container (render the conf, then `nginx -s reload`);
         - stop the other container;
+        - guard deploy & migrate jobs with `resource_group`;
+    
+- configure db migrations flow:
+    - flow:
+        - accepts migration name and direction (upgrade / downgrade) as params ;
+        - run through a one-shot `migrate` service, using the image of the target commit;
+        - manual `upgrade` / `downgrade` to a specific revision;
+
 
 - implement a few scenarios for testing CI:
-    - in separate branches:
-        - valid app update;
-        - broken app update;
-        - new db migration;
-    - scripts and or markdown with instructions on how to run them;
-    
+    - use temp directory to setup developer's repo copy:
+        - use the copy to push branches to GL and trigger merge requests;
+    - scenarios:
+        - valid app update merge request;
+        - broken app update merge request;
+        - new db migration merge request;
+        ? deployment of a commit to prod;   // or trigger via GL UI instead
+        ? db migration upgrade / downgrade;
+    - scenarios should be implemented as automated scripts and/or markdown with instructions on how to run them;
+
 - add script(-s) for resetting project state to default:
     // so that scenarios could be run repeatedly and won't interfere with each other
-    - reuse / upate existing scripts;
-    - reset project configuration & repo in GitLab;
-    - reset repo copies;
-    - reset production containers;
-
-? add security check job:
-    ? add this (and other reusable) jobs as CI/CD components;   // or include local files
-? add a job for running db migrations:
-    // or plan how they should run
-    - upgrade to specific revision;
-    - downgrade to specific revision;
-
-? periodic Docker cleanup;
-? automatic versioning job;
+    - reuse / update existing scripts;
+    - delete & recreate the GitLab project;      // instance runner and users survive
+    - re-render config, re-push base state, re-apply branch protection;
+    - reset production containers (`compose down -v`) & wipe `temp/`;
