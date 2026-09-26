@@ -1,0 +1,53 @@
+# The local GitLab instance and its runner, in one compose project so the runner
+# reaches GitLab by service name and shares its lifecycle.
+#
+# Bring this up through gitlab/setup.sh rather than by hand. A bare
+# `docker compose up -d` gets GitLab running, but the runner has no token yet and
+# will sit there failing to authenticate until setup writes one.
+#
+# Everything the containers write lands under temp/gitlab/, which is gitignored.
+# Those directories end up owned by the daemon-side users GitLab and the runner
+# run as - root and uid 999 - not by you. That is why setup delivers rendered
+# files through the containers instead of writing into those paths directly, and
+# why `rm -rf temp/` is not a safe way to clean up this project.
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:${GITLAB_IMAGE_TAG}
+    restart: unless-stopped
+
+    # GitLab's omnibus services stop slowly. The default 10s grace would SIGKILL
+    # PostgreSQL mid-write on every restart.
+    stop_grace_period: 1m
+
+    ports:
+      # nginx listens on the external_url port, so this is a 1:1 mapping rather
+      # than the usual 80 in the container behind a different host port.
+      - "${GITLAB_HTTP_PORT}:${GITLAB_HTTP_PORT}"
+      # gitlab-shell listens on 22 inside; the host's own SSH already owns 22.
+      - "${GITLAB_SSH_PORT}:22"
+
+    volumes:
+      - ../temp/gitlab/etc:/etc/gitlab
+      - ../temp/gitlab/opt:/var/opt/gitlab
+      - ../temp/gitlab/log:/var/log/gitlab
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:${GITLAB_RUNNER_IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      - gitlab
+
+    # Written by setup once it has created the instance runner and holds the
+    # glrt- token. `required: false` lets an early `up -d gitlab` succeed before
+    # the file exists.
+    env_file:
+      - path: ../temp/gitlab_credentials/runner.env
+        required: false
+
+    volumes:
+      # config.toml is rendered here without the token inside it.
+      - ../temp/gitlab/runner:/etc/gitlab-runner
+      # The runner creates the job containers on the host's daemon, so it needs
+      # the same socket those jobs (and their services) get.
+      - /var/run/docker.sock:/var/run/docker.sock

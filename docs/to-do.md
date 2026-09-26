@@ -19,17 +19,17 @@ Additional:
 
 # Detailed To-Dos
 
-- setup Gitlab CI / CD:
-    - `gitlab/.env` for keeping all GitLab-related documentation (add `gitlab/.env.example` as a reference);
-    - containerized deployment:
-        - pinned image tag;
-        - tuned `gitlab.rb` (populate from .env, minimize RAM consumption);
-    - configure (add idempotent bash script(-s)):
-        - auth (add GitLab admin, project owner and developer);
-        - containerized runner executor for the project (instance-scoped, Docker executor);
-        - render `gitlab.rb` & runner config from `gitlab/.env`;
-    - no environments;      // deployment state is the nginx config
-    - no CI/CD variables;     // no registry; prod credentials live in the compose file
++ setup Gitlab CI / CD:      // gitlab/ verified end to end: setup.sh + smoke-test.sh
+    + `gitlab/.env` for keeping all GitLab-related documentation (add `gitlab/.env.example` as a reference);
+    + containerized deployment:
+        + pinned image tag;
+        + tuned `gitlab.rb` (populate from .env, minimize RAM consumption);
+    + configure (add idempotent bash script(-s)):
+        + auth (add GitLab admin, project owner and developer);
+        + containerized runner manager for the project (instance-scoped, Docker executor);
+        + render `gitlab.rb` & runner config from `gitlab/.env`;
+    + no environments;      // deployment state is the nginx config
+    + no CI/CD variables;     // no registry; prod credentials live in the compose file
 
 - setup project:
     - store project configuration:
