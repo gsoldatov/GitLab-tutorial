@@ -22,3 +22,20 @@ TODO
 # Stop GitLab & its runner
 docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env -p gitlab-tutorial down
 ```
+
+# `temp/` Directory Structure
+
+All files created during GitLab setup and scenario runs are stored here. A `->` marks where a directory is mounted inside a container.
+
+```
+temp/
+├── gitlab/                  # GitLab's own state
+│   ├── etc/                 #   -> /etc/gitlab: the rendered gitlab.rb, plus the secrets GitLab generates
+│   ├── opt/                 #   -> /var/opt/gitlab: PostgreSQL, Gitaly and the repositories
+│   ├── log/                 #   -> /var/log/gitlab: one log directory per omnibus service
+│   ├── runner/              #   -> /etc/gitlab-runner: config.toml, rendered, with the token read from the env
+│   └── rendered/            #   host-side staging for the rendered templates, plus the hash of the one applied
+|
+├── gitlab_credentials/      # admin, owner and developer PATs, plus the runner's glrt- token, mode 0600
+└── deploy/                  #   -> job containers, at this same absolute path: the rendered nginx conf
+```
