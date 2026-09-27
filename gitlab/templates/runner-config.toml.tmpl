@@ -33,10 +33,26 @@ check_interval = 3
     ]
     privileged = false
 
-    # Jobs are deliberately left on the default bridge. Joining the GitLab
-    # compose network would let each job's `services:` containers collide on
-    # shared DNS names across concurrent jobs; reaching GitLab at its published
-    # address instead needs no extra_hosts and no second name to keep in sync.
+    # No network_mode is set, which leaves every job on the default Docker
+    # bridge. That is what makes `services:` safe under concurrency: since 18.7
+    # the runner emulates Docker's deprecated container links with `extra_hosts`,
+    # so every job container's /etc/hosts maps its services' aliases to its own
+    # service containers. Two concurrent test jobs can both address Postgres as
+    # `postgres` and still reach different servers, and no host port is published
+    # for them to collide over. The alias is the image name with its tag
+    # stripped, so `services: postgres:16-alpine` answers to `postgres` - and
+    # never to `localhost`.
+    #
+    # Joining the GitLab compose network is the one wrong choice: a user-defined
+    # network has embedded DNS, so each concurrent job's `postgres` would
+    # register the same name and resolution would return one of them at random.
+    # Reaching GitLab at its published address needs no extra_hosts and no
+    # second name to keep in sync.
+    #
+    # The alternative, FF_NETWORK_PER_BUILD, gives each job a private network.
+    # It is needed only if a *service* has to resolve the job container (alias
+    # `build`) or another service, which nothing here does; it costs a daemon
+    # reconfigured with IPv6 enabled and a network created and removed per job.
     #
     # Images are tagged by commit SHA on the host and never pushed, so always
     # refetching base images would be pure cost with nothing to gain.
