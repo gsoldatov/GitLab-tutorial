@@ -44,17 +44,14 @@ GitLab's own documentation states that adding a user to the `docker` group grant
 it full root, so the original "additional user in the docker group" idea was a
 privilege *expansion*, not a reduction. A genuine rootless daemon would
 additionally need a subuid/subgid range for a new user and a fix for
-`kernel.apparmor_restrict_unprivileged_userns=1`, which is active on this host.
+`kernel.apparmor_restrict_unprivileged_userns=1`.
 
 **2. `external_url` is the docker0 bridge gateway (`172.17.0.1`), auto-detected.**
 It is the single address reachable by all four consumers: the host shell, the
 host browser, the runner container (routing to the host) and the job containers
-(whose gateway it is). It is independent of DHCP and of the VM's networking — the
-only outward address here is `10.0.2.15` over VirtualBox NAT, with no bridged or
-host-only adapter, so a LAN address would not be reachable from outside anyway.
-`GITLAB_EXTERNAL_HOST` overrides it. This also avoids depending on
-`host-gateway`, which is unconfirmed in GitLab's docs, and needs no `/etc/hosts`
-edit.
+(whose gateway it is). `GITLAB_EXTERNAL_HOST` overrides it. This also avoids
+depending on `host-gateway`, which is unconfirmed in GitLab's docs, and needs no
+`/etc/hosts` edit.
 
 **3. Job containers stay on the default bridge.**
 Deliberately no `network_mode`. Joining the GitLab compose network would let each
@@ -121,11 +118,10 @@ failed configure is retried rather than recorded as done.
 **13. A runner whose token we no longer hold is replaced, not reused.** GitLab
 cannot return a token twice, so delete-and-recreate is the only idempotent path.
 
-**14. Pins**, each verified with `docker manifest inspect` on 2026-09-23:
-`gitlab/gitlab-ce:19.4.1-ce.0` (the CE image requires the `-ce.0` suffix; a bare
-`19.4.0` does not exist), `gitlab/gitlab-runner:alpine-v19.4.0` (the runner has no
-19.4.1 release at all, so the families differ — that is normal), and
-`docker:24.0.5-cli` for job images.
+**14. Pins**, each confirmed to exist before being written down:
+`gitlab/gitlab-ce:19.4.1-ce.0` (the CE image requires the `-ce.0` suffix),
+`gitlab/gitlab-runner:alpine-v19.4.0` (the two families do not share patch numbers,
+which is normal), and `docker:24.0.5-cli` for job images.
 
 **15. Layout:** `setup.sh` + `lib/common.sh` + `templates/`, so the reset script
 in a later task can reuse the shared helpers instead of duplicating them.
@@ -150,18 +146,18 @@ Before the run:
 
 By the run:
 
-- First boot: image pulled, reconfigure finished, `/-/readiness` went green after
-  540s, and the admin PAT was minted through `gitlab-rails runner` and accepted by
-  `GET /user`. No scope fallback was needed, so `create_runner` is valid here.
+- First boot: image pulled, reconfigure finished, `/-/readiness` went green, and the
+  admin PAT was minted through `gitlab-rails runner` and accepted by `GET /user`. No
+  scope fallback was needed, so `create_runner` is valid here.
 - Accounts: root renamed, owner and developer created with `skip_confirmation` and
   each given a PAT.
-- Runner: registered over the API, container started, **online after 6s**.
-- Re-running `setup.sh`: no GitLab restart (`gitlab.rb` hash unchanged, `ready after
-  0s`), PATs reused, accounts found, runner reused, `exit=0`.
-- `smoke-test.sh`: CI file linted by GitLab (`valid`), pipeline green in 17s, both
-  jobs `success`, project deleted. The trace shows the job seeing the host's
-  `gitlab-tutorial-gitlab-1` and `gitlab-tutorial-gitlab-runner-1` containers and
-  `daemon: name=ubuntu-dev server=29.6.0` — DooD proven, not inferred.
+- Runner: registered over the API, container started, and came online.
+- Re-running `setup.sh`: no GitLab restart (`gitlab.rb` hash unchanged, so no readiness
+  wait), PATs reused, accounts found, runner reused, `exit=0`.
+- `smoke-test.sh`: CI file linted by GitLab (`valid`), pipeline green, both jobs
+  `success`, project deleted. The trace shows the job seeing the host's
+  `gitlab-tutorial-gitlab-1` and `gitlab-tutorial-gitlab-runner-1` containers — DooD
+  proven, not inferred.
 - Re-running `smoke-test.sh` on the same fixed name works, on every exit path.
 
 ## Corrected by the run
@@ -176,9 +172,8 @@ By the run:
   `<path>-deletion_scheduled-<id>` (which is what frees the name), and only then
   does `permanently_remove=true&full_path=<renamed>` purge it; the original
   assumption that one call with the original path would do both was wrong.
-- **The job image already has Compose**: `docker compose version` in a job prints
-  `Docker Compose version v2.21.0`. No helper container or plugin install is needed
-  for the deploy task.
+- **The job image already has Compose**: `docker compose version` succeeds in a job,
+  so no helper container or plugin install is needed for the deploy task.
 - **`check_ports_available` killed the script silently.** `port_in_use "$port" &&
   die` returned non-zero for a *free* port, and as the last command of the loop that
   became the function's status, which `set -e` acted on with no message. It is an
@@ -189,9 +184,6 @@ By the run:
 
 ## Notes for whatever comes next
 
-- GitLab CE cost about 6 GB of disk (17 GB → 11 GB free), which is why preflight's
-  20 GB warning fires on this machine.
-- The first reconfigure took ~9 minutes here; a warm one is instant.
 - `ci_config_path` writability is still unverified, and only the project task needs
   it.
 

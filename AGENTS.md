@@ -47,14 +47,12 @@ application, its pipeline, the deploy and the migrations is still design.
   registration token. Setup writes it to `temp/gitlab_credentials/runner.env`, which a
   compose `env_file` feeds to `token = "${RUNNER_TOKEN}"`, so the rendered config holds
   no secret;
-- Ports in use: 22 (host SSH) and 53 (resolved). Chosen: GitLab HTTP 8929, GitLab SSH
-  2222 (paired with `gitlab_shell_ssh_port`), nginx 8080.
-- Verified: the gateway (`172.17.0.1`) is reachable from the host, from the runner
-  container and from a job container on the default bridge, so it is the one address all
-  four consumers share;
-- Verified: the default job image `docker:24.0.5-cli` ships Docker CLI 24.0.5 **and**
-  Compose v2.21.0, so deploy jobs can call `docker compose` directly — no helper
-  container and no plugin install.
+- Chosen ports: GitLab HTTP 8929, GitLab SSH 2222 (paired with
+  `gitlab_shell_ssh_port`), nginx 8080.
+- The docker0 bridge gateway is the one address the host, the runner container and a
+  job container share, so it is what `GITLAB_EXTERNAL_HOST` defaults to;
+- The default job image ships both the Docker CLI and the Compose plugin, so deploy
+  jobs can call `docker compose` directly — no helper container and no plugin install.
 
 
 ### Path semantics (why the deploy dir exists)
@@ -124,7 +122,7 @@ application, its pipeline, the deploy and the migrations is still design.
   `temp/gitlab/rendered`, and spare `gitlab-tutorial-api:*` images, unless a specific
   CLI arg is provided for the script. **Never** wipe `temp/gitlab/` (GitLab's secrets,
   database and repositories) or `temp/gitlab_credentials/`: those are what make a reset
-  cheap rather than another nine-minute first boot.
+  cheap rather than another first boot.
 - Deleting a project takes two API calls. Marking it for deletion renames its path to
   `<path>-deletion_scheduled-<id>`, which is what frees the name; only then does
   `permanently_remove=true&full_path=<renamed path>` purge it.
@@ -187,10 +185,8 @@ harness. Reserved scenario branches: `valid app update`, `broken app update`,
 
 ## Settled by the first real run
 
-- Pins: `gitlab/gitlab-ce:19.4.1-ce.0` (the CE image needs the `-ce.0` suffix; a bare
-  `19.4.0` does not exist) and `gitlab/gitlab-runner:alpine-v19.4.0` — the runner has no
-  19.4.1 release, so the two families differ, which is normal. Job images:
-  `docker:24.0.5-cli`.
+- The CE image needs the `-ce.0` suffix on its tag, and GitLab and the runner do not
+  release matching patch numbers. Tags are pinned in `gitlab/.env.example`.
 - Instance runners are registered with a `glrt-` token from `POST /user/runners`; no UI
   step, and registration tokens never enter into it.
 - `create_runner` is a valid personal-access-token scope on this version, and
@@ -198,15 +194,12 @@ harness. Reserved scenario branches: `valid app update`, `broken app update`,
 - Root can be renamed, but not to `admin`, which is one of GitLab's reserved top-level
   paths. The admin's email is deliberately left alone: changing it marks the address
   unconfirmed and nothing here can confirm it, which would lock the account out.
-- The memory tuning holds on a ~10 GB host, and the container's own healthcheck
-  self-skips — it reports `(healthy)` regardless — so container health says nothing
-  about readiness. `/-/readiness` is the signal. The first reconfigure took about nine
-  minutes here; later runs are instant.
+- The container's own healthcheck self-skips — it reports `(healthy)` regardless — so
+  container health says nothing about readiness. `/-/readiness` is the signal.
 
 ## Open — verify before it is needed
 
 - Whether `ci_config_path` is writable through the REST API on the pinned version
   (needed by the project task; the project's CI file is not at the repository root).
-- How much disk the app images and build cache add. The CE image alone took the host
-  from 17 GB to 11 GB free, which is below the 20 GB its own guidance assumes, so the
-  disk warning in preflight fires on this machine.
+- How much disk the app images and build cache add. The CE image alone already eats
+  into the 20 GB that preflight's warning assumes, so expect that warning to fire.

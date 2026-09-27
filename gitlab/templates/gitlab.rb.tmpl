@@ -32,8 +32,8 @@ gitlab_rails['monitoring_whitelist'] = ['127.0.0.0/8', '::1', '172.16.0.0/12']
 # switches off monitoring that nothing here will ever scrape.
 #
 # That guide has further knobs (GITALY_COMMAND_SPAWN_MAX_PARALLEL, MALLOC_CONF)
-# aimed at 2-4 GB hosts. They are left out on purpose: this machine has 10 GB,
-# and tuning that cannot be explained in a line is worse than the memory it saves.
+# aimed at 2-4 GB hosts. They are left out on purpose: tuning that cannot be
+# explained in a line is worse than the memory it saves.
 puma['worker_processes'] = 0
 sidekiq['concurrency'] = 10
 sidekiq['metrics_enabled'] = false
