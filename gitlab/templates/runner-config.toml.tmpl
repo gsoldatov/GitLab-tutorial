@@ -53,7 +53,8 @@ check_interval = 3
     # It is needed only if a *service* has to resolve the job container (alias
     # `build`) or another service, which nothing here does; it costs a daemon
     # reconfigured with IPv6 enabled and a network created and removed per job.
-    #
-    # Images are tagged by commit SHA on the host and never pushed, so always
-    # refetching base images would be pure cost with nothing to gain.
+
+    # Governs the images the runner starts for a job - the job's `image:`, the
+    # `image` above when the job declares none, and its `services:` images - and
+    # pulls only those that are not already present locally.
     pull_policy = ["if-not-present"]
