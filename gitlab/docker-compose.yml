@@ -48,6 +48,7 @@ services:
     volumes:
       # config.toml is rendered here without the token inside it.
       - ../temp/gitlab/runner:/etc/gitlab-runner
-      # The runner creates the job containers on the host's daemon, so it needs
-      # the same socket those jobs (and their services) get.
+      # The docker executor creates the job containers on the host's daemon, and
+      # it runs inside this container, so the socket has to be reachable here as
+      # well as inside those jobs (and their services).
       - /var/run/docker.sock:/var/run/docker.sock

@@ -16,17 +16,17 @@ check_interval = 3
   executor = "docker"
 
   [runners.docker]
-    image = "__RUNNER_JOB_IMAGE__"
+    image = "__RUNNER_EXECUTOR_IMAGE__"
 
     # The whole design rests on this socket: every job builds images and runs the
     # production stack through the host's daemon. Nothing below is privileged,
     # but the socket alone is enough to do anything on the host, which is also
     # why every job is host-root-equivalent.
     #
-    # These mounts are per-runner, not per-job, so the lint and test jobs inherit
-    # the socket as well. deploy lands at the same absolute path here and on the
-    # host, which is what makes its bind mount resolve on both sides of the
-    # daemon boundary.
+    # These mounts are per runner configuration (per `[[runners]]` block), not per
+    # job, so the lint and test jobs inherit the socket as well. deploy lands at
+    # the same absolute path here and on the host, which is what makes its bind
+    # mount resolve on both sides of the daemon boundary.
     volumes = [
       "/var/run/docker.sock:/var/run/docker.sock",
       "__REPO_ROOT__/temp/deploy:__REPO_ROOT__/temp/deploy",

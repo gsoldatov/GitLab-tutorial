@@ -3,8 +3,8 @@
 # Proves the runner works end to end. Creates a throwaway project, commits a
 # two-job .gitlab-ci.yml, waits for the pipeline, prints the job traces and deletes
 # the project again. The point of the jobs is to reach the host's Docker daemon
-# through the socket the runner mounted into every job container - that one
-# assumption is what the whole deploy design rests on.
+# through the socket the docker executor mounts into every job container - that
+# one assumption is what the whole deploy design rests on.
 #
 # The project keeps a fixed name and is deleted on every exit path, which is what
 # lets the next run create it again.
@@ -18,7 +18,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 PROJECT_NAME=smoke-test
 
 # How long the pipeline may take in total, and how long it may take to appear at
-# all. The former is generous: a cold runner also has to pull the job image.
+# all. The former is generous: a cold run also has to pull the job image.
 PIPELINE_TIMEOUT=600
 PIPELINE_APPEAR_TIMEOUT=60
 
@@ -44,9 +44,10 @@ EOF
 
 
 # The proof job deliberately declares neither image: nor tags:, so it uses the
-# runner's own configured default image and exercises run_untagged. The dump of
-# the host's container list and the daemon's own name are the evidence that the
-# socket reaches the host rather than a nested daemon.
+# docker executor's configured default image (RUNNER_EXECUTOR_IMAGE) and
+# exercises run_untagged. The dump of the host's container list and the daemon's
+# own name are the evidence that the socket reaches the host rather than a
+# nested daemon.
 #
 # The compose probe is a job of its own, allowed to fail, so that a missing plugin
 # is *reported* instead of failing the pipeline. Its status is also the only

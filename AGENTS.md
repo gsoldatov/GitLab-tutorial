@@ -34,11 +34,13 @@ application, its pipeline, the deploy and the migrations is still design.
 
 - One runner, **instance-scoped**, Docker executor. Registered once, so it survives
   project deletion and reset can freely recreate the project.
-- The runner mounts `/var/run/docker.sock` and the repo's `temp/deploy` at
-  **identical absolute paths**.
+- The runner container mounts `/var/run/docker.sock`. The docker executor mounts that
+  same socket, plus the repo's `temp/deploy`, into every job container, at
+  **identical absolute paths** on both sides of the daemon boundary.
 - DooD is a deliberate, documented anti-pattern: Docker here is rootful, so every job
-  gets host root. Volume mounts are per-runner, not per-job, so lint and test jobs
-  inherit it too. Do not "fix" this without revisiting the whole deploy design.
+  gets host root. The executor's volume mounts are per runner configuration (per
+  `[[runners]]` block), not per job, so lint and test jobs inherit it too. Do not
+  "fix" this without revisiting the whole deploy design.
 - `gitlab.rb` and the runner's `config.toml` are rendered from `gitlab/.env` by setup,
   never hand-edited;
 - The runner authenticates with a `glrt-` token from `POST /user/runners`, never a

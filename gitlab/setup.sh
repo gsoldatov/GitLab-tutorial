@@ -79,7 +79,7 @@ phase_render() {
     "RUNNER_DESCRIPTION=$RUNNER_DESCRIPTION" \
     "EXTERNAL_HOST=$EXTERNAL_HOST" \
     "HTTP_PORT=$GITLAB_HTTP_PORT" \
-    "RUNNER_JOB_IMAGE=$RUNNER_JOB_IMAGE" \
+    "RUNNER_EXECUTOR_IMAGE=$RUNNER_EXECUTOR_IMAGE" \
     "REPO_ROOT=$REPO_ROOT"
 
   # Compared against the hash of the configuration that was last confirmed
@@ -162,7 +162,7 @@ bootstrap_admin_token() {
   # model does not register it rejects the whole token, and that would surface
   # only after the long first boot. Fall back to plain api, which an
   # administrator already holds, and report which one was granted.
-  output="$(rails_runner "
+  output="$(rails_exec "
 user = User.find_by_username('$GITLAB_ADMIN_USERNAME') || User.find_by_id(1)
 raise 'no admin account found' if user.nil?
 expires_at = $TOKEN_EXPIRY_YEARS.year.from_now

@@ -19,6 +19,6 @@ TODO
 
 # Other Commands
 ```bash
-# Stop GitLab & its worker
+# Stop GitLab & its runner
 docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env -p gitlab-tutorial down
 ```

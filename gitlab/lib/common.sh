@@ -47,7 +47,7 @@ REQUIRED_KEYS=(
   GITLAB_DEVELOPER_EMAIL
   RUNNER_DESCRIPTION
   RUNNER_CONCURRENT
-  RUNNER_JOB_IMAGE
+  RUNNER_EXECUTOR_IMAGE
 )
 
 # Any token minted for the tutorial gets an explicit expiry: GitLab applies a
@@ -168,8 +168,9 @@ validate_env() {
 }
 
 # The published address every consumer has to reach: this machine's shell, its
-# browser, the runner container and the job containers. The docker bridge gateway
-# is the one address that works for all four without a hosts file or extra_hosts.
+# browser, the runner manager container and the job containers. The docker
+# bridge gateway is the one address that works for all four without a hosts file
+# or extra_hosts.
 resolve_external_host() {
   if [ -n "${GITLAB_EXTERNAL_HOST:-}" ]; then
     EXTERNAL_HOST="$GITLAB_EXTERNAL_HOST"
@@ -321,7 +322,10 @@ print('' if v is None else v)
 # Running code inside GitLab rather than against it. Needed exactly once: the
 # first access token cannot be created through the API, because creating a token
 # requires a token.
-rails_runner() {
+#
+# gitlab-rails' subcommand is called `runner`, an unrelated homonym for the CI
+# runner, so this wrapper is named after what it does instead.
+rails_exec() {
   compose exec -T "$GITLAB_SERVICE" gitlab-rails runner "$1"
 }
 
