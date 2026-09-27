@@ -67,6 +67,7 @@ Additional:
         - linting & type checking;
         - tests;
     - should forbid merge if any errors occur ("Pipelines must succeed");
+    - check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
 
 - configure deployment flow for the project:
     - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
@@ -97,9 +98,13 @@ Additional:
         ? db migration upgrade / downgrade;
     - scenarios should be implemented as automated scripts and/or markdown with instructions on how to run them;
 
+- add a script that tests if 2 test jobs can work simultaneously;
+
 - add script(-s) for resetting project state to default:
     // so that scenarios could be run repeatedly and won't interfere with each other
     - reuse / update existing scripts;
     - delete & recreate the GitLab project;      // instance runner and users survive
     - re-render config, re-push base state, re-apply branch protection;
     - reset production containers (`compose down -v`) & wipe `temp/`;
+
+- add cleanup script (remove containers and all files in temp dir);
