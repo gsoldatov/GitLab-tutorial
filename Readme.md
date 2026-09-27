@@ -35,7 +35,7 @@ temp/
 │   ├── log/                 #   -> /var/log/gitlab: one log directory per omnibus service
 │   ├── runner/              #   -> /etc/gitlab-runner: config.toml, rendered, with the token read from the env
 │   └── rendered/            #   host-side staging for the rendered templates, plus the hash of the one applied
-|
 ├── gitlab_credentials/      # admin, owner and developer PATs, plus the runner's glrt- token, mode 0600
-└── deploy/                  #   -> job containers, at this same absolute path: the rendered nginx conf
+└── deployment/              #   -> job containers, at this same absolute path
+    └── nginx/               #   -> job containers, via the mount above: Nginx deployment configuration is placed here
 ```

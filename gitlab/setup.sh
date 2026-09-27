@@ -64,7 +64,8 @@ phase_preflight() {
 phase_render() {
   step "Rendering configuration"
   mkdir -p -- "$TEMP_GITLAB_ETC" "$TEMP_GITLAB/opt" "$TEMP_GITLAB/log" \
-    "$TEMP_GITLAB_RUNNER" "$TEMP_DEPLOY" "$CREDENTIALS_DIR" "$RENDERED_DIR"
+    "$TEMP_GITLAB_RUNNER" "$TEMP_DEPLOYMENT" "$TEMP_DEPLOYMENT_NGINX" \
+    "$CREDENTIALS_DIR" "$RENDERED_DIR"
 
   render_template "$TEMPLATES_DIR/gitlab.rb.tmpl" "$RENDERED_DIR/gitlab.rb" \
     "EXTERNAL_HOST=$EXTERNAL_HOST" \

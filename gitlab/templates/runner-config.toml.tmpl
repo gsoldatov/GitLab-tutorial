@@ -24,12 +24,18 @@ check_interval = 3
     # why every job is host-root-equivalent.
     #
     # These mounts are per runner configuration (per `[[runners]]` block), not per
-    # job, so the lint and test jobs inherit the socket as well. deploy lands at
-    # the same absolute path here and on the host, which is what makes its bind
-    # mount resolve on both sides of the daemon boundary.
+    # job, so the lint and test jobs inherit the socket as well.
+    #
+    # temp/deployment is pre-created and unused: nothing writes to it yet. It is
+    # here as the place to add a mount when a deployment needs one, and it shows
+    # the shape such a mount has to take - the same absolute path inside the job
+    # and on the host, which is what makes a bind mount resolve on both sides of
+    # the daemon boundary. The deploy job will write the nginx configuration it
+    # swaps between blue and green to temp/deployment/nginx/; anything else it
+    # needs goes under temp/deployment/ and needs no new mount.
     volumes = [
       "/var/run/docker.sock:/var/run/docker.sock",
-      "__REPO_ROOT__/temp/deploy:__REPO_ROOT__/temp/deploy",
+      "__REPO_ROOT__/temp/deployment:__REPO_ROOT__/temp/deployment",
     ]
     privileged = false
 

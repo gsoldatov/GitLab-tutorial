@@ -34,7 +34,7 @@ temp/gitlab/log/          -> /var/log/gitlab
 temp/gitlab/runner/       -> /etc/gitlab-runner    (rendered config.toml, token-free)
 temp/gitlab/rendered/                              (our rendered sources, user-owned)
 temp/gitlab_credentials/                           (admin/owner/developer PATs, runner.env)
-temp/deploy/                                       (pre-created so the daemon never makes it root-owned)
+temp/deployment/nginx/                             (pre-created so the daemon never makes it root-owned)
 ```
 
 ## Decisions
@@ -140,7 +140,7 @@ Before the run:
 - `bash -n` clean on `common.sh` and `setup.sh`.
 - `validate_env` passes against `.env.example`; both templates render; the rendered
   runner config parses as valid TOML with `url = http://172.17.0.1:8929`, `token`
-  left unexpanded, and the identical-path `temp/deploy` mount present.
+  left unexpanded, and the identical-path `temp/deployment` mount present.
 - The placeholder-drift guard fires correctly, and `deliver_file`'s direct-write
   path writes matching contents.
 
