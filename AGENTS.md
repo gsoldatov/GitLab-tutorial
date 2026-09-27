@@ -28,6 +28,29 @@ application, its pipeline, the deploy and the migrations is still design.
   - `deploy/` (rendered nginx conf) and `dev/` (developer's repo clone) — disposable;
 - `docs/` — `to-do.md` is the task list; `plan-suggestions.md` is a non-authoritative reference of possible approaches, **not** a plan.
 
+## Terminology
+
+GitLab's own word "runner" covers several things; the split below is what the code and
+these notes follow.
+
+- **runner** / **runner manager** — used interchangeably, as GitLab does: the
+  `gitlab-runner` container that reads `config.toml`, polls GitLab and holds the `glrt-`
+  token. `RUNNER_*` names are possessive — `RUNNER_TOKEN`, `RUNNER_CONCURRENT` — so the
+  prefix means "of the runner", never "is a runner".
+- **executor** — the Docker executor: `executor = "docker"` and the `[runners.docker]`
+  block. It creates the job containers, and it is nested *under* the runner in
+  `config.toml`, so its settings keep the prefix and add the layer instead:
+  `RUNNER_EXECUTOR_IMAGE` is the image jobs run in, where `GITLAB_RUNNER_IMAGE_TAG` is
+  the image the runner manager itself runs as.
+- **registration** — the runner as GitLab knows it: the record behind `/runners`, named
+  by `RUNNER_DESCRIPTION` and created by `POST /user/runners`. It outlives the container.
+  GitLab's glossary calls this a *runner configuration*.
+
+Names GitLab fixes are never renamed: `/etc/gitlab-runner`, the `gitlab/gitlab-runner`
+image, the `[[runners]]` and `[runners.docker]` keys, the `/runners` API paths, the
+`create_runner` scope. `gitlab-rails runner` is an unrelated homonym that executes Ruby
+inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh`.
+
 ## Architectural decisions
 
 ### Runner and host integration
