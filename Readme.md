@@ -17,6 +17,22 @@ TODO
 - setup reset
 - project teardown
 
+# API Project Local Commands
+
+```bash
+# Start the dev database (reads project/.env)
+docker compose -f project/docker-compose.dev.yml up -d db
+
+# Stop the dev database, keeping its data volume
+docker compose -f project/docker-compose.dev.yml down
+
+# Stop the dev database and delete its data volume
+docker compose -f project/docker-compose.dev.yml down -v
+
+# Run the test suite (the dev database must be running; reads project/.env)
+cd project && uv run pytest
+```
+
 # Other Commands
 ```bash
 # Stop GitLab & its runner
