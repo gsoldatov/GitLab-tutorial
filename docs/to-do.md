@@ -31,60 +31,49 @@ Additional:
     + no environments;      // deployment state is the nginx config
     + no CI/CD variables;     // no registry; prod credentials live in the compose file
 
-- setup project:
-    - store project configuration:
-        - `project/.env` with example file for configuration;
-        - testing configuration may be partially or fully overridden by GitLab;
-        - deployment configuration may be partially or fully overridden by docker-compose.yml;
++ setup project:
+    + store project configuration:
+        + `project/.env` with example file for configuration;
+        + testing configuration may be partially or fully overridden by GitLab;
+        + deployment configuration may be partially or fully overridden by docker-compose.yml;
 
-    - project source code:
-        - simple FastAPI app:
-            - read configuration with Pydantic Settings;
-            - Postgres as DB + async SQLAlchemy & Alembic;
-            - a single `users` table with Alembic migration;
-            - app setup & teardown;
-            - create operation for the `users` table;
-            - `GET /health`;        // used as the deployment readiness gate
-            - Dockerfile;
-        - tests:
-            - fixtures and test utilities;
-            - integration tests for `users` route handler;
-            - run against a per-job `postgres` service container;
-
-    - additional branches for testing (scenarios, deferred):
-        - a valid feature branch:
-            - `items` table + create route handler;
-            - integration tests for new route handler;
-        - an invalid feature branch:
-            - additional test case that intentionally fails;
-        x a branch with a new db migration; // should be covered by valid feature branch
+    + project source code:
+        + simple FastAPI app:
+            + read configuration with Pydantic Settings;
+            + Postgres as DB + async SQLAlchemy & Alembic;
+            + a single `users` table with Alembic migration;
+            + app setup & teardown;
+            + create operation for the `users` table;
+            + `GET /health`;        // used as the deployment readiness gate
+            x Dockerfile;
+        + tests:
+            + fixtures and test utilities;
+            + integration tests for `users` route handler;
+            + run against a per-job `postgres` service container;
+    
+    + configure linting & type checking;
 
 - implement basic merge request flow:
+    - register project in GL:
+        - idempotently;
+        - only main branch should be present there (with all the commits available in the project's repo);
     - branch protection:
         - main: only owner can merge, no one can push;
         - other branches: owner and developer can push;
+    - update job container to allow running API project-related checks;
     - jobs in the flow:
         - linting & type checking;
         - tests;
     - should forbid merge if any errors occur ("Pipelines must succeed");
     - check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
 
-- configure deployment flow for the project:
-    - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
-    - deployment flow:
-        - triggered manually;
-        - is parametrized with commit to deploy & flag to deploy blue or green container (manual job, runtime variables);
-        - build a production image for the specified commit;
-        - start the target container and wait for `GET /health`;
-        - redirect nginx to the correct container (render the conf, then `nginx -s reload`);
-        - stop the other container;
-        - guard deploy & migrate jobs with `resource_group`;
-    
-- configure db migrations flow:
-    - flow:
-        - accepts migration name and direction (upgrade / downgrade) as params ;
-        - run through a one-shot `migrate` service, using the image of the target commit;
-        - manual `upgrade` / `downgrade` to a specific revision;
+- additional branches for testing (scenarios, deferred):
+    - a valid feature branch:
+        - `items` table + create route handler;
+        - integration tests for new route handler;
+    - an invalid feature branch:
+        - additional test case that intentionally fails;
+    x a branch with a new db migration; // should be covered by valid feature branch
 
 
 - implement a few scenarios for testing CI:
@@ -108,3 +97,23 @@ Additional:
     - reset production containers (`compose down -v`) & wipe `temp/`;
 
 - add cleanup script (remove containers and all files in temp dir);
+
+
+- configure deployment flow for the project:
+    - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
+    - deployment flow:
+        - triggered manually;
+        - is parametrized with commit to deploy & flag to deploy blue or green container (manual job, runtime variables);
+        - build a production image for the specified commit;
+        - start the target container and wait for `GET /health`;
+        - redirect nginx to the correct container (render the conf, then `nginx -s reload`);
+        - stop the other container;
+        - guard deploy & migrate jobs with `resource_group`;
+    
+- configure db migrations flow:
+    - flow:
+        - accepts migration name and direction (upgrade / downgrade) as params ;
+        - run through a one-shot `migrate` service, using the image of the target commit;
+        - manual `upgrade` / `downgrade` to a specific revision;
+
+
