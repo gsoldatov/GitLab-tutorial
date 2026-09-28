@@ -204,7 +204,8 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - `pydantic-settings`; environment variables win, `project/.env` is a local
   convenience, and a missing `.env` is not an error.
 - Tests: per-job `services: postgres:16-alpine`, the database connection passed through
-  `DB__*` env vars set in the job, `httpx.ASGITransport`, per-test transaction rollback.
+  `DB__*` env vars set in the job, `httpx.ASGITransport`, a module-scoped test database
+  and per-test `TRUNCATE`.
 
 ## Deferred (not v1)
 
