@@ -8,7 +8,7 @@ TODO complete the file after project is finished
 cp gitlab/.env.example gitlab/.env
 
 # Setup and configure GitLab and a containerized runner
-./gitlab/setup.sh
+./gitlab/setup_gitlab.sh
 ```
 
 TODO

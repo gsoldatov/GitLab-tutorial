@@ -19,7 +19,7 @@ Additional:
 
 # Detailed To-Dos
 
-+ setup Gitlab CI / CD:      // gitlab/ verified end to end: setup.sh + smoke-test.sh
++ setup Gitlab CI / CD:      // gitlab/ verified end to end: setup_gitlab.sh + docker-smoke-test.sh
     + `gitlab/.env` for keeping all GitLab-related documentation (add `gitlab/.env.example` as a reference);
     + containerized deployment:
         + pinned image tag;
@@ -53,14 +53,34 @@ Additional:
     
     + configure linting & type checking;
 
+- implement setup_project.sh script:
+    - idempotent;
+    - registers (or resets via delete) project in GitLab:
+        - only main branch is sent, other branches should be pushed manually when testing corresponding scenarios;
+        - branch protection:
+            - main: only owner can merge, no one can push;
+            - other branches: owner and developer can push;
+    - create (or reset) a dev repo copy:
+        - temp/repo_copies/dev;
+        - contains all branches;
+        - has GitLab's repo as its only remote;
+
+- add cleanup script:
+    - stop and remove containers (but keep images);
+    - remove all files in temp dir;
+
+? add script(-s) for resetting project state to default:        // check if all features can be done by other scripts
+    // so that scenarios could be run repeatedly and won't interfere with each other
+    - reuse / update existing scripts;
+    - delete & recreate the GitLab project;      // instance runner and users survive
+    - re-render config, re-push base state, re-apply branch protection;
+    - reset production containers (`compose down -v`) & wipe `temp/`;
+
+
+
+
 - implement basic merge request flow:
-    - register project in GL:
-        - idempotently;
-        - only main branch should be present there (with all the commits available in the project's repo);
-    - branch protection:
-        - main: only owner can merge, no one can push;
-        - other branches: owner and developer can push;
-    - update job container to allow running API project-related checks;
+    - update job container (or add another) to allow running API project-related checks;
     - jobs in the flow:
         - linting & type checking;
         - tests;
@@ -88,16 +108,6 @@ Additional:
     - scenarios should be implemented as automated scripts and/or markdown with instructions on how to run them;
 
 - add a script that tests if 2 test jobs can work simultaneously;
-
-- add script(-s) for resetting project state to default:
-    // so that scenarios could be run repeatedly and won't interfere with each other
-    - reuse / update existing scripts;
-    - delete & recreate the GitLab project;      // instance runner and users survive
-    - re-render config, re-push base state, re-apply branch protection;
-    - reset production containers (`compose down -v`) & wipe `temp/`;
-
-- add cleanup script (remove containers and all files in temp dir);
-
 
 - configure deployment flow for the project:
     - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;

@@ -6,7 +6,7 @@
 # restart to pick it up, and leaves existing accounts and the runner registration
 # alone. Only --force-pat throws credentials away.
 #
-# Usage: gitlab/setup.sh [--force-pat] [--skip-wait]
+# Usage: gitlab/setup_gitlab.sh [--force-pat] [--skip-wait]
 
 set -euo pipefail
 

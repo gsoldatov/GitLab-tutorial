@@ -1,7 +1,7 @@
 # The local GitLab instance and its runner, in one compose project so the runner
 # reaches GitLab by service name and shares its lifecycle.
 #
-# Bring this up through gitlab/setup.sh rather than by hand. A bare
+# Bring this up through gitlab/setup_gitlab.sh rather than by hand. A bare
 # `docker compose up -d` gets GitLab running, but the runner has no token yet and
 # will sit there failing to authenticate until setup writes one.
 #

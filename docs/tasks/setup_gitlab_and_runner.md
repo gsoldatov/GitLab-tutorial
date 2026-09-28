@@ -1,8 +1,8 @@
 # Setup: GitLab instance & containerized runner
 
-**Status:** done. Ran against a real instance: `gitlab/setup.sh` brought GitLab and
-the runner up, `gitlab/smoke-test.sh` ran a pipeline whose jobs reached the host's
-Docker daemon, and both scripts were re-run to confirm they are idempotent.
+**Status:** done. Ran against a real instance: `gitlab/setup_gitlab.sh` brought GitLab
+and the runner up, `gitlab/test/docker-smoke-test.sh` ran a pipeline whose jobs reached
+the host's Docker daemon, and both scripts were re-run to confirm they are idempotent.
 
 Goal: `gitlab/` scripts and artifacts that bring up a self-hosted GitLab CE in
 Docker and register an instance-scoped, containerized runner (Docker executor)
@@ -22,8 +22,8 @@ protection, group creation, the reset script, and the deferred SAST / versioning
 | `gitlab/templates/gitlab.rb.tmpl` | Omnibus configuration | done |
 | `gitlab/templates/runner-config.toml.tmpl` | Runner `config.toml`, token-free | done |
 | `gitlab/lib/common.sh` | Paths, logging, env load/validate, render, deliver, compose/API/Rails wrappers, readiness wait | done, exercised by a real run |
-| `gitlab/setup.sh` | Eight phases, idempotent, `--force-pat`, `--skip-wait`, `--help` | done, ran twice, `exit=0` |
-| `gitlab/smoke-test.sh` | Throwaway pipeline proving jobs reach the host daemon | done, pipeline green, project cleaned up |
+| `gitlab/setup_gitlab.sh` | Eight phases, idempotent, `--force-pat`, `--skip-wait`, `--help` | done, ran twice, `exit=0` |
+| `gitlab/test/docker-smoke-test.sh` | Throwaway pipeline proving jobs reach the host daemon | done, pipeline green, project cleaned up |
 
 Generated, all under the already-gitignored `temp/`:
 
@@ -87,7 +87,7 @@ admin **email is deliberately never touched**: changing an address marks it
 unconfirmed and nothing can confirm it here, which would lock the account out of
 the web UI.
 
-**8. `setup.sh` runs no privileged commands.** The only privileged work involved
+**8. `setup_gitlab.sh` runs no privileged commands.** The only privileged work involved
 is GitLab's own sysctl set, which setup detects and prints rather than applies.
 This corrects an earlier claim of mine: `vm.overcommit_memory` and
 `fs.inotify.max_user_watches` are *not* GitLab-documented tunings. The real
@@ -110,10 +110,10 @@ unauthenticated but allowlisted, and traffic arriving through a published port i
 SNAT'd to the bridge gateway rather than looking like `127.0.0.1`, so without this
 the host-side readiness wait is refused and every run looks like a failure.
 
-**12. Reconfigure is driven by a content hash.** `setup.sh` compares the freshly
-rendered `gitlab.rb` against `.gitlab.rb.applied`, which is written only after a
-readiness wait succeeds — so an unrelated re-run does not restart GitLab, and a
-failed configure is retried rather than recorded as done.
+**12. Reconfigure is driven by a content hash.** `setup_gitlab.sh` compares the
+freshly rendered `gitlab.rb` against `.gitlab.rb.applied`, which is written only
+after a readiness wait succeeds — so an unrelated re-run does not restart GitLab,
+and a failed configure is retried rather than recorded as done.
 
 **13. A runner whose token we no longer hold is replaced, not reused.** GitLab
 cannot return a token twice, so delete-and-recreate is the only idempotent path.
@@ -123,8 +123,8 @@ cannot return a token twice, so delete-and-recreate is the only idempotent path.
 `gitlab/gitlab-runner:alpine-v19.4.0` (the two families do not share patch numbers,
 which is normal), and `docker:24.0.5-cli` for job images.
 
-**15. Layout:** `setup.sh` + `lib/common.sh` + `templates/`, so the reset script
-in a later task can reuse the shared helpers instead of duplicating them.
+**15. Layout:** `setup_gitlab.sh` + `lib/common.sh` + `templates/` + `test/`, so the
+reset script in a later task can reuse the shared helpers instead of duplicating them.
 
 ## Completed and verified
 
@@ -137,7 +137,7 @@ Before the run:
   interpolating from `.env`.
 - `env_file` behaviour tested in isolation: long form + `required: false` works
   for both a present and an absent file.
-- `bash -n` clean on `common.sh` and `setup.sh`.
+- `bash -n` clean on `common.sh` and `setup_gitlab.sh`.
 - `validate_env` passes against `.env.example`; both templates render; the rendered
   runner config parses as valid TOML with `url = http://172.17.0.1:8929`, `token`
   left unexpanded, and the identical-path `temp/deployment` mount present.
@@ -152,13 +152,13 @@ By the run:
 - Accounts: root renamed, owner and developer created with `skip_confirmation` and
   each given a PAT.
 - Runner: registered over the API, container started, and came online.
-- Re-running `setup.sh`: no GitLab restart (`gitlab.rb` hash unchanged, so no readiness
-  wait), PATs reused, accounts found, runner reused, `exit=0`.
-- `smoke-test.sh`: CI file linted by GitLab (`valid`), pipeline green, both jobs
+- Re-running `setup_gitlab.sh`: no GitLab restart (`gitlab.rb` hash unchanged, so no
+  readiness wait), PATs reused, accounts found, runner reused, `exit=0`.
+- `docker-smoke-test.sh`: CI file linted by GitLab (`valid`), pipeline green, both jobs
   `success`, project deleted. The trace shows the job seeing the host's
   `gitlab-tutorial-gitlab-1` and `gitlab-tutorial-gitlab-runner-1` containers — DooD
   proven, not inferred.
-- Re-running `smoke-test.sh` on the same fixed name works, on every exit path.
+- Re-running `docker-smoke-test.sh` on the same fixed name works, on every exit path.
 
 ## Corrected by the run
 
@@ -190,7 +190,7 @@ By the run:
 ## How to run
 
 ```sh
-gitlab/setup.sh          # first run creates gitlab/.env from the example and exits
-gitlab/setup.sh          # brings it up, registers the runner
-gitlab/smoke-test.sh     # proves jobs reach the host daemon
+gitlab/setup_gitlab.sh            # first run creates gitlab/.env from the example, exits
+gitlab/setup_gitlab.sh            # brings it up, registers the runner
+gitlab/test/docker-smoke-test.sh  # proves jobs reach the host daemon
 ```

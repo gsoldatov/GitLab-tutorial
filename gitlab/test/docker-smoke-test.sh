@@ -9,11 +9,11 @@
 # The project keeps a fixed name and is deleted on every exit path, which is what
 # lets the next run create it again.
 #
-# Usage: gitlab/smoke-test.sh [--timeout SECONDS]
+# Usage: gitlab/test/docker-smoke-test.sh [--timeout SECONDS]
 
 set -euo pipefail
 
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/lib/common.sh"
 
 PROJECT_NAME=smoke-test
 
@@ -55,9 +55,9 @@ EOF
 # printed by the job and the command that prints it are indistinguishable.
 ci_yaml() {
   cat <<YAML
-# Committed by gitlab/smoke-test.sh into a throwaway project. The default CI
-# configuration path is .gitlab-ci.yml at the repository root, so nothing has to
-# be configured in the project for this to run.
+# Committed by gitlab/test/docker-smoke-test.sh into a throwaway project. The
+# default CI configuration path is .gitlab-ci.yml at the repository root, so
+# nothing has to be configured in the project for this to run.
 #
 # Every command is a single-quoted YAML scalar on purpose: a colon followed by a
 # space ends a plain scalar, and these commands carry "daemon: name=..." inside
@@ -119,16 +119,16 @@ phase_preflight() {
   step "Preflight"
   require_docker
 
-  [ -f "$ENV_FILE" ] || die "$ENV_FILE does not exist; run gitlab/setup.sh first"
+  [ -f "$ENV_FILE" ] || die "$ENV_FILE does not exist; run gitlab/setup_gitlab.sh first"
   load_env
   validate_env
   resolve_external_host
 
   local token_file="$CREDENTIALS_DIR/admin.pat"
-  [ -s "$token_file" ] || die "$token_file does not exist; run gitlab/setup.sh first"
+  [ -s "$token_file" ] || die "$token_file does not exist; run gitlab/setup_gitlab.sh first"
   API_TOKEN="$(cat "$token_file")"
   api GET /user >/dev/null \
-    || die "the token in $token_file is not accepted; re-run gitlab/setup.sh --force-pat"
+    || die "the token in $token_file is not accepted; re-run gitlab/setup_gitlab.sh --force-pat"
 
   log "GitLab         $(gitlab_url)"
   log "project        $GITLAB_ADMIN_USERNAME/$PROJECT_NAME"
@@ -143,7 +143,7 @@ phase_runner() {
   runners="$(api GET /runners/all)" || die "could not list the instance runners"
   status="$(runner_field status "$runners")"
   [ "$status" = online ] \
-    || die "the instance runner '$RUNNER_DESCRIPTION' is '${status:-missing}', not online; run gitlab/setup.sh, or check 'docker compose -f gitlab/docker-compose.yml logs gitlab-runner'"
+    || die "the instance runner '$RUNNER_DESCRIPTION' is '${status:-missing}', not online; run gitlab/setup_gitlab.sh, or check 'docker compose -f gitlab/docker-compose.yml logs gitlab-runner'"
 
   log "online         $RUNNER_DESCRIPTION"
 }
