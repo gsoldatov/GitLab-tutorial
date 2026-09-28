@@ -198,13 +198,13 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 
 ### Application
 
-- FastAPI; async SQLAlchemy + asyncpg; sync psycopg for Alembic, whose migration
-  context is sync.
+- FastAPI; async SQLAlchemy over psycopg3; sync psycopg for Alembic, whose migration
+  context is sync. One `postgresql+psycopg://` URL serves both engines.
 - `users` table with create route, one Alembic migration, `GET /health`.
 - `pydantic-settings`; environment variables win, `project/.env` is a local
-  convenience.
-- Tests: per-job `services: postgres:16-alpine`, `DATABASE_URL` set explicitly in the
-  job, `httpx.ASGITransport`, per-test transaction rollback.
+  convenience, and a missing `.env` is not an error.
+- Tests: per-job `services: postgres:16-alpine`, the database connection passed through
+  `DB__*` env vars set in the job, `httpx.ASGITransport`, per-test transaction rollback.
 
 ## Deferred (not v1)
 

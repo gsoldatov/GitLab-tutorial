@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB__DEFAULT_USERNAME}
+      POSTGRES_PASSWORD: ${DB__DEFAULT_PASSWORD}
+      POSTGRES_DB: ${DB__DEFAULT_DATABASE}
+    ports:
+      - "${DB__PORT}:5432"
+    volumes:
+      - gitlab-tutorial-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB__DEFAULT_USERNAME} -d ${DB__DEFAULT_DATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  gitlab-tutorial-db-data:
