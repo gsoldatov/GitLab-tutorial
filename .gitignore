@@ -5,6 +5,8 @@ __pycache__/
 dist/
 build/
 .venv/
+.mypy_cache/
+.ruff_cache/
 
 
 # Configuration

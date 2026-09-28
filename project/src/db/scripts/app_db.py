@@ -8,7 +8,8 @@ if __name__ == "__main__":
 import psycopg
 from psycopg import sql
 
-from src.config import Config, get_config
+from src.config import get_config
+from src.models.config import Config
 
 
 class DBManager:
@@ -22,7 +23,7 @@ class DBManager:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "DBManager":
+    def __enter__(self) -> DBManager:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -44,9 +45,7 @@ class DBManager:
             )
             print(f"  ✓ user '{self._config.db.app_username}' created")
         else:
-            print(
-                f"  • user '{self._config.db.app_username}' already exists, skipping"
-            )
+            print(f"  • user '{self._config.db.app_username}' already exists, skipping")
 
     def create_db(self, database_name: str) -> None:
         """Creates a database if it does not exist yet."""
@@ -79,9 +78,7 @@ class DBManager:
             ).format(sql.Literal(database_name))
         )
         self._conn.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {}").format(
-                sql.Identifier(database_name)
-            )
+            sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database_name))
         )
 
     def delete_user_databases(self) -> None:

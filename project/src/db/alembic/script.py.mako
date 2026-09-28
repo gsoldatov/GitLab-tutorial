@@ -1,20 +1,29 @@
-"""${message}
+<%!
+# Alembic renders identifiers with repr(), i.e. with single quotes, which
+# ruff's formatter would rewrite; the template quotes them itself so that a
+# generated revision is already format-clean.
+def _literal(value: object) -> str:
+    return repr(value).replace("'", '"')
+%>"""${message}
 
 Revision ID: ${up_revision}
-Revises: ${down_revision | comma,n}
+Revises:${" " + comma(down_revision) if down_revision else ""}
 Create Date: ${create_date}
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-${imports if imports else ""}
+from alembic import op
+% if imports:
+${imports}
+% endif
 
 # revision identifiers, used by Alembic.
-revision: str = ${repr(up_revision)}
-down_revision: Union[str, None] = ${repr(down_revision)}
-branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
-depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
+revision: str = ${_literal(up_revision)}
+down_revision: str | None = ${_literal(down_revision)}
+branch_labels: str | Sequence[str] | None = ${_literal(branch_labels)}
+depends_on: str | Sequence[str] | None = ${_literal(depends_on)}
 
 
 def upgrade() -> None:

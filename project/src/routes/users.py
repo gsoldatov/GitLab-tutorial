@@ -27,8 +27,8 @@ async def create_user(
     session.add(user)
     try:
         await session.commit()
-    except IntegrityError:
+    except IntegrityError as err:
         await session.rollback()
-        raise HTTPException(status_code=409, detail=_CONFLICT_DETAIL)
+        raise HTTPException(status_code=409, detail=_CONFLICT_DETAIL) from err
     await session.refresh(user)
     return User.model_validate(user)

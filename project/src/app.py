@@ -1,10 +1,11 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.config import Config
+from src.models.config import Config
 from src.routes import setup_routes
 
 

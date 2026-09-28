@@ -15,8 +15,8 @@ _project_root = Path(__file__).resolve().parents[3]
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from src.config import get_config
-from src.db.models import Base
+from src.config import get_config  # noqa: E402
+from src.db.models import Base  # noqa: E402
 
 config = context.config
 
