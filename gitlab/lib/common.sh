@@ -23,6 +23,7 @@ TEMP_GITLAB_ETC="$TEMP_GITLAB/etc"
 TEMP_GITLAB_RUNNER="$TEMP_GITLAB/runner"
 TEMP_DEPLOYMENT="$TEMP_DIR/deployment"
 TEMP_DEPLOYMENT_NGINX="$TEMP_DEPLOYMENT/nginx"
+TEMP_REPO_COPIES="$TEMP_DIR/repo_copies"
 CREDENTIALS_DIR="$TEMP_DIR/gitlab_credentials"
 RENDERED_DIR="$TEMP_GITLAB/rendered"
 
@@ -62,6 +63,17 @@ log()  { printf '  %s\n' "$*"; }
 step() { printf '\n==> %s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+
+# ---------------------------------------------------------------- preconditions
+# Every command a script needs from the host, named up front so a missing one is
+# reported before anything has been created or deleted.
+require_command() {
+  local command
+  for command in "$@"; do
+    command -v "$command" >/dev/null 2>&1 || die "$command is not on PATH"
+  done
+}
 
 
 # ---------------------------------------------------------------- environment
@@ -343,6 +355,125 @@ description, field = sys.argv[1], sys.argv[2]
 match = next((r for r in runners if r.get('description') == description), None)
 print('' if match is None else match.get(field, ''))
 " "$RUNNER_DESCRIPTION" "$field"
+}
+
+
+# ---------------------------------------------------------------- GitLab API: projects
+# Registering and protecting a project: the vocabulary setup_project.sh works in,
+# and what anything later that resets or inspects the project reuses.
+
+# GitLab's numeric access levels by name, so call sites read as roles. 0 is the
+# API's "No one", which is how a protected branch refuses pushes outright.
+access_level_of() {
+  case "$1" in
+    none)       printf '0' ;;
+    guest)      printf '10' ;;
+    reporter)   printf '20' ;;
+    developer)  printf '30' ;;
+    maintainer) printf '40' ;;
+    owner)      printf '50' ;;
+    *) die "unknown access level '$1'; expected none, guest, reporter, developer, maintainer or owner" ;;
+  esac
+}
+
+# Prints the id of the project at this full path, or nothing when there is no
+# such project. A 404 is an answer here rather than a failure, so a caller can
+# treat "missing" as an ordinary state.
+project_id_of() {
+  local full_path="$1" response
+  response="$(api GET "/projects/${full_path//\//%2F}" 2>/dev/null)" || return 0
+  printf '%s' "$response" | json_get "d.get('id', '') if isinstance(d, dict) else ''"
+}
+
+# create_project <name>
+#
+# Prints the created project as JSON. Private, and with no README: a project that
+# starts empty has no default commit for a pushed history to diverge from, and no
+# protection rule of its own to replace.
+create_project() {
+  local name="$1"
+  api POST /projects "{\"name\": \"$name\", \"path\": \"$name\", \"visibility\": \"private\"}"
+}
+
+# delete_project <project id>
+#
+# Deleting takes two calls on this GitLab. The first marks the project for
+# deletion, which is also what frees its name - the path is renamed to
+# <path>-deletion_scheduled-<id> - and only the second removes it for good, using
+# that renamed path.
+delete_project() {
+  local id="$1" marked path
+  api DELETE "/projects/$id" >/dev/null || return 1
+  marked="$(api GET "/projects/$id" 2>/dev/null)" || return 1
+  path="$(printf '%s' "$marked" | json_get "d['path_with_namespace']" 2>/dev/null)" || path=""
+  [ -n "$path" ] || return 1
+  api DELETE "/projects/$id?permanently_remove=true&full_path=${path//\//%2F}" >/dev/null
+}
+
+# Prints the id of the user with this username, or nothing when there is none.
+user_id_of() {
+  local username="$1" found
+  found="$(api GET "/users?username=$username")" || return 0
+  printf '%s' "$found" | json_get "d[0]['id'] if d else ''"
+}
+
+# add_project_member <project id> <user id> <access level name>
+add_project_member() {
+  local project_id="$1" user_id="$2" level
+  level="$(access_level_of "$3")"
+  api POST "/projects/$project_id/members" "{\"user_id\": $user_id, \"access_level\": $level}" >/dev/null
+}
+
+# Prints the id of the protection rule on <branch>, or nothing when that branch
+# has no rule.
+protected_branch_id() {
+  local project_id="$1" branch="$2" rules
+  rules="$(api GET "/projects/$project_id/protected_branches")" || return 0
+  printf '%s' "$rules" | python3 -c "
+import sys, json
+branch = sys.argv[1]
+match = next((r for r in json.load(sys.stdin) if r.get('name') == branch), None)
+print('' if match is None else match.get('id', ''))
+" "$branch"
+}
+
+# protect_branch <project id> <branch> <push level name> <merge level name>
+#
+# Replaces the rule rather than updating it, and takes the scalar level
+# parameters; both are findings from the pinned 19.4.1 rather than the shape the
+# documentation suggests:
+#   * `allowed_to_push` / `allowed_to_merge` are accepted and ignored, leaving the
+#     rule at Maintainers no matter what they ask for;
+#   * PATCH answers 200 while silently keeping the old levels, so a PATCH-based
+#     reconcile cannot lower push access at all;
+#   * `push_access_level` and `merge_access_level` on a POST do take effect, and
+#     are the only combination observed to produce "No one may push".
+protect_branch() {
+  local project_id="$1" branch="$2" push_level merge_level
+  push_level="$(access_level_of "$3")"
+  merge_level="$(access_level_of "$4")"
+
+  # A project created with a README arrives with a rule for its default branch,
+  # and a second POST for the same name is refused. A project created empty has
+  # none; this covers either.
+  if [ -n "$(protected_branch_id "$project_id" "$branch")" ]; then
+    api DELETE "/projects/$project_id/protected_branches/$branch" >/dev/null \
+      || die "could not drop the existing protection on $branch"
+  fi
+
+  api POST "/projects/$project_id/protected_branches" \
+    "{\"name\": \"$branch\", \"push_access_level\": $push_level, \"merge_access_level\": $merge_level}" >/dev/null
+}
+
+# The URL GitLab serves this project's repository on, without credentials.
+git_http_url() {
+  printf 'http://%s:%s/%s.git' "$EXTERNAL_HOST" "$GITLAB_HTTP_PORT" "$1"
+}
+
+# The same URL with the credentials a clone or push needs. The token ends up on a
+# command line or in a clone's config, so the caller decides where this goes.
+git_auth_url() {
+  printf 'http://%s:%s@%s:%s/%s.git' "$1" "$2" "$EXTERNAL_HOST" "$GITLAB_HTTP_PORT" "$3"
 }
 
 

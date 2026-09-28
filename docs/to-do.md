@@ -53,17 +53,16 @@ Additional:
     
     + configure linting & type checking;
 
-- implement setup_project.sh script:
-    - idempotent;
-    - registers (or resets via delete) project in GitLab:
-        - only main branch is sent, other branches should be pushed manually when testing corresponding scenarios;
-        - branch protection:
-            - main: only owner can merge, no one can push;
-            - other branches: owner and developer can push;
-    - create (or reset) a dev repo copy:
-        - temp/repo_copies/dev;
-        - contains all branches;
-        - has GitLab's repo as its only remote;
++ implement `gitlab/setup_project.sh` script:
+    + registers (or resets via delete) project in GitLab:
+        + only main branch is sent, other branches should be pushed manually when testing corresponding scenarios;
+        + branch protection:
+            + main: only owner can merge, no one can push;
+            + other branches: owner and developer can push;
+    + create (or reset) a dev repo copy:
+        + temp/repo_copies/dev;
+        + contains all branches;
+        + has GitLab's repo as its only remote;
 
 - add cleanup script:
     - stop and remove containers (but keep images);
@@ -107,7 +106,9 @@ Additional:
         ? db migration upgrade / downgrade;
     - scenarios should be implemented as automated scripts and/or markdown with instructions on how to run them;
 
-- add a script that tests if 2 test jobs can work simultaneously;
+- test scripts:
+    - 2 test jobs can work simultaneously;
+    - main branch in GL is protected from being into;
 
 - configure deployment flow for the project:
     - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;

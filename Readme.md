@@ -8,11 +8,16 @@ TODO complete the file after project is finished
 cp gitlab/.env.example gitlab/.env
 
 # Setup and configure GitLab and a containerized runner
+# Script is idempotent and can be called again to update GL's configuration.
 ./gitlab/setup_gitlab.sh
+
+# Register the API project in GitLab and create its copy in temp dir,
+# which can be used for testing the GL setup.
+# Calling the script again will reset both GL and temp dir repo copy.
+./gitlab/setup_project.sh
 ```
 
 TODO
-- project configuration commands
 - scenario runs
 - setup reset
 - project teardown
@@ -52,6 +57,8 @@ temp/
 │   ├── runner/              #   -> /etc/gitlab-runner: config.toml, rendered, with the token read from the env
 │   └── rendered/            #   host-side staging for the rendered templates, plus the hash of the one applied
 ├── gitlab_credentials/      # admin, owner and developer PATs, plus the runner's glrt- token, mode 0600
+├── repo_copies/
+│   └── dev/                 # the developer's clone of the GitLab project: branches for a scenario are pushed from here
 └── deployment/              #   -> job containers, at this same absolute path
     └── nginx/               #   -> job containers, via the mount above: Nginx deployment configuration is placed here
 ```

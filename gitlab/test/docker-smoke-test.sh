@@ -82,19 +82,6 @@ YAML
 }
 
 
-# Deleting a project takes two calls on this GitLab. The first marks it for
-# deletion, which is also what frees its name - GitLab renames the path to
-# <path>-deletion_scheduled-<id> - and only the second removes it for good. The
-# second call wants the *renamed* full path, so that is read back in between.
-delete_project() {
-  local id="$1" marked path
-  api DELETE "/projects/$id" >/dev/null || return 1
-  marked="$(api GET "/projects/$id" 2>/dev/null)" || return 1
-  path="$(printf '%s' "$marked" | json_get "d['path_with_namespace']" 2>/dev/null)" || path=""
-  [ -n "$path" ] || return 1
-  api DELETE "/projects/$id?permanently_remove=true&full_path=${path//\//%2F}" >/dev/null
-}
-
 # Runs on every exit, success or failure, so a run never leaves the project - or
 # its namespace path - behind.
 cleanup() {
@@ -154,10 +141,10 @@ phase_create_project() {
   local leftover="" created=""
 
   # A run killed before its trap fired leaves the project behind.
-  leftover="$(api GET "/projects/${GITLAB_ADMIN_USERNAME}%2F${PROJECT_NAME}" 2>/dev/null)" || leftover=""
+  leftover="$(project_id_of "$GITLAB_ADMIN_USERNAME/$PROJECT_NAME")"
   if [ -n "$leftover" ]; then
     log "replacing      a leftover $PROJECT_NAME"
-    delete_project "$(printf '%s' "$leftover" | json_get "d['id']")" \
+    delete_project "$leftover" \
       || die "a leftover $PROJECT_NAME could not be deleted; remove it in Admin Area > Projects first"
   fi
 
