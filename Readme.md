@@ -1,4 +1,10 @@
-TODO complete the file after project is finished
+TODO complete the file after project is finished:
+- description & architecture
+- project layout
+- scenario runs
+- how to access GL outside of VM
+? reorganize commands
+???
 
 
 # Setup Locally
@@ -13,14 +19,19 @@ cp gitlab/.env.example gitlab/.env
 
 # Register the API project in GitLab and create its copy in temp dir,
 # which can be used for testing the GL setup.
-# Calling the script again will reset both GL and temp dir repo copy.
 ./gitlab/setup_project.sh
 ```
 
-TODO
-- scenario runs
-- setup reset
-- project teardown
+
+# Reset & Teardown
+
+```bash
+# Reset the project in GitLab and temp dir to its default (remove any made commits to main branch, etc.)
+./gitlab/setup_project.sh
+
+# Remove all project containers and temp files
+./gitlab/cleanup.sh
+```
 
 # API Project Local Commands
 
@@ -40,13 +51,13 @@ cd project && uv run pytest
 
 # Other Commands
 ```bash
-# Stop GitLab & its runner
+# Stop GitLab & its runner, keeping their state in temp/
 docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env -p gitlab-tutorial down
 ```
 
 # `temp/` Directory Structure
 
-All files created during GitLab setup and scenario runs are stored here. A `->` marks where a directory is mounted inside a container.
+All files created during GitLab setup and scenario runs are stored here. A `->` marks where a directory is mounted inside a container. `gitlab/cleanup.sh` empties the whole directory; nothing here survives a full teardown.
 
 ```
 temp/

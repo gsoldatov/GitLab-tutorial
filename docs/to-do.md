@@ -1,8 +1,8 @@
 # Overview
 
-- setup & configure GitLab in Docker container;
-- setup Python API project with a PostgreSQL db & tests;
-- configure project repo to be managed by GitLab;
++ setup & configure GitLab in Docker container;
++ setup Python API project with a PostgreSQL db & tests;
++ configure project repo to be managed by GitLab;
 - configure jobs for merge request (linting & tests);
 - configure jobs for deploying:
     - blue / green deployment (Nginx + 2 API containers + db container) on the same machine (separately from GL container(-s));
@@ -64,16 +64,11 @@ Additional:
         + contains all branches;
         + has GitLab's repo as its only remote;
 
-- add cleanup script:
-    - stop and remove containers (but keep images);
-    - remove all files in temp dir;
++ add cleanup script:
+    + stop and remove containers (but keep images);
+    + remove all files in temp dir;
 
-? add script(-s) for resetting project state to default:        // check if all features can be done by other scripts
-    // so that scenarios could be run repeatedly and won't interfere with each other
-    - reuse / update existing scripts;
-    - delete & recreate the GitLab project;      // instance runner and users survive
-    - re-render config, re-push base state, re-apply branch protection;
-    - reset production containers (`compose down -v`) & wipe `temp/`;
+x add script(-s) for resetting project state to default;    // partial reset can be achieved by running setup scripts, full reset - by running cleanup -> setup scripts
 
 
 
@@ -127,4 +122,8 @@ Additional:
         - run through a one-shot `migrate` service, using the image of the target commit;
         - manual `upgrade` / `downgrade` to a specific revision;
 
+- script for resetting prod to default state:
+    ? merge with setup project;
 
+- remove prod containers in cleanup script;
+- ensure all runner containers are deleted by cleanup;
