@@ -24,7 +24,13 @@ gitlab_rails['initial_root_password'] = '__ADMIN_PASSWORD__'
 # arriving through a published port is SNAT'd to the bridge gateway rather than
 # appearing to come from 127.0.0.1. Without the private range, setup's readiness
 # wait is refused and every run looks like a failure.
-gitlab_rails['monitoring_whitelist'] = ['127.0.0.0/8', '::1', '172.16.0.0/12']
+#
+# 10.0.2.0/24 is the machine's own adapter (enp0s3). GITLAB_EXTERNAL_HOST is set
+# to that address rather than the gateway when the instance is browsed from
+# outside, and a readiness request aimed at it arrives with a source inside this
+# range - without it that probe gets a 404 while the UI on the same address is
+# served normally.
+gitlab_rails['monitoring_whitelist'] = ['127.0.0.0/8', '::1', '172.16.0.0/12', '10.0.2.0/24']
 
 # --- memory-constrained instance --------------------------------------------
 # From GitLab's guidance for memory-constrained environments. A single puma
