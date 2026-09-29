@@ -18,6 +18,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 PROJECT_NAME="gitlab-tutorial-project"
 MAIN_BRANCH="main"
+CI_CONFIG_PATH="project/.gitlab-ci.yml"
 DEV_COPY="$TEMP_REPO_COPIES/dev"
 
 # A token is embedded in the clone's remote URL, so a rejected one has to fail
@@ -48,6 +49,8 @@ EOF
 phase_preflight() {
   step "Preflight"
   require_command git curl python3
+  # Only the ci_config_path fallback needs docker: it goes through gitlab-rails.
+  require_docker
 
   [ -f "$ENV_FILE" ] || die "$ENV_FILE does not exist; run gitlab/setup_gitlab.sh first"
   load_env
@@ -178,6 +181,24 @@ phase_protect() {
   log "protected      $MAIN_BRANCH: no one may push, maintainers may merge"
 }
 
+# Runs after the push on purpose: main is published before ci_config_path exists,
+# so setup itself starts no pipeline - the first one belongs to a scenario.
+phase_ci() {
+  step "CI configuration"
+
+  set_ci_config_path "$PROJECT_ID" "$CI_CONFIG_PATH"
+  log "ci path        $CI_CONFIG_PATH"
+
+  update_project "$PROJECT_ID" '{"only_allow_merge_if_pipeline_succeeds": true}' \
+    || die "could not require a successful pipeline before merging"
+
+  local gate
+  gate="$(project_field "$PROJECT_ID" "str(d.get('only_allow_merge_if_pipeline_succeeds')).lower()")"
+  [ "$gate" = "true" ] \
+    || die "GitLab reports only_allow_merge_if_pipeline_succeeds=$gate"
+  log "merge gate     a green pipeline is required to merge into $MAIN_BRANCH"
+}
+
 phase_dev_copy() {
   step "Developer clone"
 
@@ -201,6 +222,7 @@ phase_report() {
   log "project        $(gitlab_url)/$PROJECT_PATH"
   log "members        $GITLAB_OWNER_USERNAME (maintainer), $GITLAB_DEVELOPER_USERNAME (developer)"
   log "clone          temp/repo_copies/dev, origin only, pushing as $GITLAB_DEVELOPER_USERNAME"
+  log "ci             $CI_CONFIG_PATH; merging into $MAIN_BRANCH needs a green pipeline"
   log "branches       only $MAIN_BRANCH is published; push a scenario branch from the clone when one is needed"
   log "restore        re-run this script to delete and rebuild both"
 }
@@ -222,6 +244,7 @@ main() {
   phase_push
   phase_default_branch
   phase_protect
+  phase_ci
   phase_dev_copy
   phase_report
 }

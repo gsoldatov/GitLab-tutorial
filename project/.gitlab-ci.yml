@@ -1,0 +1,94 @@
+# The repository holds the GitLab setup, the app and the docs, so the app's
+# pipeline lives here rather than at the repository root: setup_project.sh
+# points the project's ci_config_path at this file.
+#
+# Only the stages that have jobs; the build, migrate and deploy jobs will bring
+# theirs with them.
+stages: [lint, test]
+
+variables:
+  # The runner caches this directory, so uv's downloads are paid for once per
+  # uv.lock rather than once per job.
+  UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+  # Fail on a stale uv.lock rather than resolving something else, and never let
+  # uv fetch a Python: the job image's interpreter is the pin.
+  UV_FROZEN: "1"
+  UV_NO_PYTHON_DOWNLOADS: "1"
+
+workflow:
+  # When pipeline is created (checks top-down, until first condition is met)
+  rules:
+    # Run on merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run on commits to main (triggers pipeline when branch is merged to main;
+    # otherwise, not being triggered, since direct push to main is disabled)
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # Do not run if pushing to a branch with an open merge request
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    # Run when pushing to a branch without an open MR
+    - if: $CI_COMMIT_BRANCH
+
+# Shared by the three check jobs. cache:key:files and rules:changes are both
+# resolved from the repository root, so they carry the app's prefix.
+#
+# The tag pins the Python interpreter; uv within the image floats, because no
+# published tag combines a uv version with a Python one.
+.python:
+  image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+  cache:
+    key:
+      files: [project/uv.lock]
+    paths: [.uv-cache]
+  before_script:
+    - cd project
+    - uv sync --frozen
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [project/**/*]
+    - if: $CI_COMMIT_BRANCH
+      changes: [project/**/*]
+
+lint:
+  extends: .python
+  stage: lint
+  script:
+    # Gate and report are separate invocations on purpose: `ruff check --diff`
+    # implies --fix-only and exits 0, so it can only ever describe fixes.
+    - |
+      status=0
+      uv run ruff check src || status=1
+      uv run ruff format --check src || status=1
+      echo "--- what 'ruff check --fix' would change ---"
+      uv run ruff check --diff src || true
+      echo "--- what 'ruff format' would change ---"
+      uv run ruff format --diff src || true
+      exit "$status"
+
+typecheck:
+  extends: .python
+  stage: lint
+  script:
+    - uv run mypy
+
+test:
+  extends: .python
+  stage: test
+  services:
+    - postgres:16-alpine
+  variables:
+    # The service container's own bootstrap credentials, repeated as app's admin
+    # connection the tests create their roles and databases through: two sources
+    # that have to agree, so they are written next to each other.
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_DB: postgres
+    DB__HOST: postgres
+    DB__PORT: "5432"
+    DB__DEFAULT_DATABASE: postgres
+    DB__DEFAULT_USERNAME: postgres
+    DB__DEFAULT_PASSWORD: postgres
+  script:
+    # Other app settings are copied from .env.example
+    - cp .env.example .env
+    - uv run pytest

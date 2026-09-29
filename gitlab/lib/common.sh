@@ -476,6 +476,41 @@ protect_branch() {
   die "could not protect $branch; GitLab kept a rule for it that could not be replaced"
 }
 
+# Prints one field of the project at this id, or nothing when there is no such
+# project.
+project_field() {
+  local project_id="$1" expression="$2" project
+  project="$(api GET "/projects/$project_id" 2>/dev/null)" || return 0
+  printf '%s' "$project" | json_get "$expression"
+}
+
+# update_project <project id> <json body>
+update_project() {
+  local project_id="$1"
+  api PUT "/projects/$project_id" "$2" >/dev/null
+}
+
+# set_ci_config_path <project id> <path inside the repository>
+#
+# The CI/CD configuration file path has to be set explicitly because this
+# repository keeps the app's file under project/. Whether the API takes the
+# attribute on the pinned version is an open question, so the write is followed
+# by a read-back - a silently ignored write is the failure this has to catch -
+# and the column behind it is set through gitlab-rails when the API refuses.
+set_ci_config_path() {
+  local project_id="$1" path="$2" current
+
+  if ! update_project "$project_id" "{\"ci_config_path\": \"$path\"}"; then
+    warn "the API refused ci_config_path; writing it through gitlab-rails instead"
+    rails_exec "Project.find($project_id).update!(ci_config_path: '$path')" >/dev/null \
+      || die "could not set ci_config_path on project $project_id"
+  fi
+
+  current="$(project_field "$project_id" "d.get('ci_config_path') or ''")"
+  [ "$current" = "$path" ] \
+    || die "project $project_id reports ci_config_path '$current', expected '$path'"
+}
+
 # The URL GitLab serves this project's repository on, without credentials.
 git_http_url() {
   printf 'http://%s:%s/%s.git' "$EXTERNAL_HOST" "$GITLAB_HTTP_PORT" "$1"
