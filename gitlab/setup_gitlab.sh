@@ -14,7 +14,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 FORCE_PAT=false
 SKIP_WAIT=false
-WAIT_TIMEOUT=900
+WAIT_TIMEOUT=1800
 GITLAB_CONFIG_CHANGED=false
 API_TOKEN=""
 EXTERNAL_HOST=""
