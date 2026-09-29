@@ -37,7 +37,6 @@ REQUIRED_KEYS=(
   GITLAB_RUNNER_IMAGE_TAG
   GITLAB_HTTP_PORT
   GITLAB_SSH_PORT
-  COMPOSE_PROJECT_NAME
   GITLAB_ADMIN_USERNAME
   GITLAB_ADMIN_PASSWORD
   GITLAB_ADMIN_EMAIL
@@ -203,10 +202,10 @@ require_docker() {
   docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not available"
 }
 
-# Pins the compose file, the env file and the project name, so the scripts never
-# depend on the invoking shell's cwd.
+# Pins the compose file and the env file, so the scripts never depend on the
+# invoking shell's cwd.
 compose() {
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" -p "$COMPOSE_PROJECT_NAME" "$@"
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
 
 service_running() {

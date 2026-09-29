@@ -52,7 +52,7 @@ cd project && uv run pytest
 # Other Commands
 ```bash
 # Stop GitLab & its runner, keeping their state in temp/
-docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env -p gitlab-tutorial down
+docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env down
 ```
 
 # `temp/` Directory Structure

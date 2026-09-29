@@ -24,18 +24,16 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-# Compose project names, as docker records them in container and volume labels.
-# COMPOSE_PROJECT_NAME in gitlab/.env wins over the fallback below; the fallback
-# is only for a missing or unreadable env file.
+# Compose project names, as docker records them in container, volume and network
+# labels. Each is pinned by `name:` in its compose file, which is the source of
+# truth: docker records the label at creation time and nothing here reads a
+# compose file back, so these constants have to match it by hand.
 GITLAB_PROJECT="gitlab-tutorial"
-# docker compose derives this from the directory project/docker-compose.dev.yml
-# lives in. The dev compose file declares no name:, so these two agree until one
-# of them changes.
-DEV_PROJECT="project"
-# The production stack is not built yet - project/docker-compose.prod.yml does
-# not exist - so tutorial-prod is deliberately absent from the sweep below. When
-# the file lands, its project name (agreed as tutorial-prod) is the only thing
-# this script needs added; nothing else changes.
+DEV_PROJECT="tutorial-dev"
+# project/docker-compose.prod.yml does not exist yet. When it lands it must
+# declare `name: tutorial-prod`; until then this entry matches nothing and the
+# sweep is a no-op.
+PROD_PROJECT="tutorial-prod"
 
 # The runner labels everything it creates through the host daemon, and it cannot
 # return a token twice, so a discarded registration leaves its job containers and
@@ -76,11 +74,10 @@ phase_preflight() {
 
   if [ -f "$ENV_FILE" ]; then
     # shellcheck disable=SC1090
-    source "$ENV_FILE" || warn "$ENV_FILE could not be read; using the default project name"
-    GITLAB_PROJECT="${COMPOSE_PROJECT_NAME:-$GITLAB_PROJECT}"
+    source "$ENV_FILE" || warn "$ENV_FILE could not be read; the temp/ wipe will use the default image"
     WIPE_IMAGE="${RUNNER_EXECUTOR_IMAGE:-$WIPE_IMAGE}"
   else
-    warn "$ENV_FILE is missing; looking for the default compose project '$GITLAB_PROJECT' anyway"
+    warn "$ENV_FILE is missing; the project names are pinned in the compose files, so the sweep is unaffected"
   fi
 
   # The helper runs off the host daemon, so this is the same image jobs use and
@@ -91,7 +88,7 @@ phase_preflight() {
       || die "could not pull $WIPE_IMAGE; without it the root-owned directories under temp/ cannot be removed"
   fi
 
-  log "projects       $GITLAB_PROJECT, $DEV_PROJECT"
+  log "projects       $GITLAB_PROJECT, $DEV_PROJECT, $PROD_PROJECT"
   log "temp           $TEMP_DIR (all of it)"
 }
 
@@ -128,7 +125,7 @@ phase_resources() {
   # while a container holds it, and a compose network goes once its containers
   # have.
   local project
-  for project in "$GITLAB_PROJECT" "$DEV_PROJECT"; do
+  for project in "$GITLAB_PROJECT" "$DEV_PROJECT" "$PROD_PROJECT"; do
     remove_resources container "label=com.docker.compose.project=$project" "$project containers"
     remove_resources volume    "label=com.docker.compose.project=$project" "$project volumes"
     remove_resources network   "label=com.docker.compose.project=$project" "$project networks"
@@ -168,7 +165,7 @@ phase_report() {
   fi
 
   log "images         kept, so a rebuild skips pulling and building them again"
-  log "gone           $GITLAB_PROJECT, $DEV_PROJECT, runner leftovers and temp/"
+  log "gone           $GITLAB_PROJECT, $DEV_PROJECT, $PROD_PROJECT, runner leftovers and temp/"
   log "to come back   gitlab/setup_gitlab.sh    # a first boot again, so allow minutes"
   log "               gitlab/setup_project.sh   # project, protection, clone"
 }

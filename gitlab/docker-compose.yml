@@ -11,6 +11,9 @@
 # files through the containers instead of writing into those paths directly, and
 # why `rm -rf temp/` is not a safe way to clean up this project.
 
+# This name is also used by the cleanup script
+name: gitlab-tutorial
+
 services:
   gitlab:
     image: gitlab/gitlab-ce:${GITLAB_IMAGE_TAG}

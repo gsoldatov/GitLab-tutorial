@@ -1,3 +1,6 @@
+# This name is also used by the cleanup script
+name: tutorial-dev
+
 services:
   db:
     image: postgres:16-alpine

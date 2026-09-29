@@ -184,8 +184,8 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
   a scenario runner repeats.
 - **`cleanup.sh` is a full wipe, not a reset.** It finds resources by docker label rather
   than through a compose file: every container, volume and network of the compose projects
-  this repo creates (`gitlab-tutorial`, the dev `project`, plus `tutorial-prod` once it
-  exists), then everything the runner left behind
+  this repo creates (`gitlab-tutorial`, `tutorial-dev`, and `tutorial-prod` once
+  `project/docker-compose.prod.yml` exists), then everything the runner left behind
   (`com.gitlab.gitlab-runner.managed=true`), and finally all of `temp/`. Images are kept.
 - The consequence, deliberately accepted: `temp/gitlab/` (GitLab's database, secrets and
   repositories) and `temp/gitlab_credentials/` both go, so the next `setup_gitlab.sh` is a
@@ -208,9 +208,15 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 ### Configuration
 
 - `gitlab/.env.example` → `gitlab/.env` (gitignored, hand-populated): image tags, HTTP
-  and SSH ports, external host, compose project name, three usernames + passwords, and
-  the runner's description, concurrency and default image. Setup never writes back to
-  it — every generated secret lives in `temp/gitlab_credentials/`.
+  and SSH ports, external host, three usernames + passwords, and the runner's
+  description, concurrency and default image. Setup never writes back to it — every
+  generated secret lives in `temp/gitlab_credentials/`.
+- Compose project names are pinned by `name:` in each compose file, never in `.env`:
+  Compose resolves `-p` > `COMPOSE_PROJECT_NAME` > `name:` > the directory name, so an
+  `.env` value would outrank the file and be the one thing lost if the file went missing.
+  `cleanup.sh` sweeps by `com.docker.compose.project`, so the names it hardcodes have to
+  match that key: `gitlab-tutorial`, `tutorial-dev`, and `tutorial-prod` (for the
+  not-yet-written `project/docker-compose.prod.yml`).
 - `GITLAB_EXTERNAL_HOST` empty means "detect the docker0 gateway"; set it only to browse
   from another machine.
 - `project/.env.example` → `project/.env` (gitignored, hand-populated): `BACKEND__*`
@@ -247,9 +253,9 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
   above. It reuses the shared helpers, so the two-call project deletion lives in
   `lib/common.sh` rather than in either script.
 - `cleanup.sh` is a full wipe rather than a reset — see Reset and cleanup above. It is
-  also the one script that does not require `gitlab/.env`: it reads the compose project
-  name and the wipe image out of it when it is there, and falls back to the pinned
-  defaults when it is not.
+  also the one script that does not require `gitlab/.env`: the project names are pinned
+  in the compose files, and only the wipe image is read from `.env` when it is there,
+  falling back to the pinned default when it is not.
 
 ### Application
 
