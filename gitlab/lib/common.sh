@@ -448,21 +448,33 @@ print('' if match is None else match.get('id', ''))
 #     reconcile cannot lower push access at all;
 #   * `push_access_level` and `merge_access_level` on a POST do take effect, and
 #     are the only combination observed to produce "No one may push".
+#
+# The rule being replaced is usually not ours. The instance's default branch
+# protection (default_branch_protection = 2 here) gives every project a rule for
+# its default branch, and GitLab creates that rule itself the moment the branch
+# appears - so it can land between the read below and the POST, which is then
+# refused as a duplicate. The loop looks again, drops whatever is there and
+# retries, which covers both that race and a rule the project already had.
 protect_branch() {
-  local project_id="$1" branch="$2" push_level merge_level
+  local project_id="$1" branch="$2" push_level merge_level attempt
   push_level="$(access_level_of "$3")"
   merge_level="$(access_level_of "$4")"
 
-  # A project created with a README arrives with a rule for its default branch,
-  # and a second POST for the same name is refused. A project created empty has
-  # none; this covers either.
-  if [ -n "$(protected_branch_id "$project_id" "$branch")" ]; then
-    api DELETE "/projects/$project_id/protected_branches/$branch" >/dev/null \
-      || die "could not drop the existing protection on $branch"
-  fi
+  for attempt in 1 2 3 4 5; do
+    if [ -n "$(protected_branch_id "$project_id" "$branch")" ]; then
+      api DELETE "/projects/$project_id/protected_branches/$branch" >/dev/null \
+        || die "could not drop the existing protection on $branch"
+    fi
 
-  api POST "/projects/$project_id/protected_branches" \
-    "{\"name\": \"$branch\", \"push_access_level\": $push_level, \"merge_access_level\": $merge_level}" >/dev/null
+    if api POST "/projects/$project_id/protected_branches" \
+      "{\"name\": \"$branch\", \"push_access_level\": $push_level, \"merge_access_level\": $merge_level}" >/dev/null; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  die "could not protect $branch; GitLab kept a rule for it that could not be replaced"
 }
 
 # The URL GitLab serves this project's repository on, without credentials.
