@@ -70,16 +70,13 @@ Additional:
 
 x add script(-s) for resetting project state to default;    // partial reset can be achieved by running setup scripts, full reset - by running cleanup -> setup scripts
 
-
-
-
-- implement basic merge request flow:
-    - update job container (or add another) to allow running API project-related checks;
-    - jobs in the flow:
-        - linting & type checking;
-        - tests;
-    - should forbid merge if any errors occur ("Pipelines must succeed");
-    - check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
++ implement basic merge request flow:
+    + update job container (or add another) to allow running API project-related checks;
+    + jobs in the flow:
+        + linting & type checking;
+        + tests;
+    + should forbid merge if any errors occur ("Pipelines must succeed");
+    + check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
 
 - additional branches for testing (scenarios, deferred):
     - a valid feature branch:
