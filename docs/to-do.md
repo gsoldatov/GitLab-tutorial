@@ -3,7 +3,7 @@
 + setup & configure GitLab in Docker container;
 + setup Python API project with a PostgreSQL db & tests;
 + configure project repo to be managed by GitLab;
-- configure jobs for merge request (linting & tests);
++ configure jobs for merge request (linting & tests);
 - configure jobs for deploying:
     - blue / green deployment (Nginx + 2 API containers + db container) on the same machine (separately from GL container(-s));
     - jobs:
@@ -78,16 +78,18 @@ x add script(-s) for resetting project state to default;    // partial reset can
     + should forbid merge if any errors occur ("Pipelines must succeed");
     + check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
 
-- additional branches for testing:
-    - `valid-feature` branch:
-        - `items` table + create route handler;
-        - integration tests for new route handler;
-    - `failing-tests` branch:
-        - additional test case that intentionally fails;
-    - `failing-linting` branch:
-        - additional file in src/ dir that has an intentional linting error;
-    - `failing-typecheck` branch:
-        - additional file in src/ dir that has an intentional typing error;
++ additional branches for testing:
+    + `valid-feature` branch:
+        + `items` table + create route handler;
+        + integration tests for new route handler;
+    + `valid-conflicting-feature` branch:
+        + a mirror of `valid-feature` branch with read route handler instead of create and `description` name changed to `item_description`;
+    + `failing-tests` branch:
+        + additional test case that intentionally fails;
+    + `failing-linting` branch:
+        + additional file in src/ dir that has an intentional linting error;
+    + `failing-typecheck` branch:
+        + additional file in src/ dir that has an intentional typing error;
     x a branch with a new db migration; // should be covered by valid feature branch
 
 - implement scenarios for testing CI:
@@ -99,20 +101,17 @@ x add script(-s) for resetting project state to default;    // partial reset can
             - commands or instructions on how to verify that scenario was successfull completed;
     - scenarios:
         - valid feature merge request;
-        - failing merge request;    // list all failing branches there
-        - broken app update merge request;
-        - new db migration merge request;
-        ? deployment of a commit to prod;   // or trigger via GL UI instead
-        ? db migration upgrade / downgrade;
-
+        - failing merge requests;    // list all failing branches there
+        - conflicting merge request;    // apply valid feature => apply valid conflicting feature and resolve conflicts, including those which cause test failures
+        
 - test scripts:
-    - 2 test jobs can work simultaneously;
-    - main branch in GL is protected from being into;
+    x 2 test jobs can work simultaneously;      // was tested manually
+    - main branch in GL is protected from being pushed into;
 
 - configure deployment flow for the project:
     - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
     - deployment flow:
-        - triggered manually;
+        - triggered manually;   // other jobs shouldn't trigger with it
         - is parametrized with commit to deploy & flag to deploy blue or green container (manual job, runtime variables);
         - build a production image for the specified commit;
         - start the target container and wait for `GET /health`;
@@ -122,7 +121,8 @@ x add script(-s) for resetting project state to default;    // partial reset can
     
 - configure db migrations flow:
     - flow:
-        - accepts migration name and direction (upgrade / downgrade) as params ;
+        - triggered manually;   // other jobs shouldn't trigger with it
+        - accepts migration name and direction (upgrade / downgrade) as params;
         - run through a one-shot `migrate` service, using the image of the target commit;
         - manual `upgrade` / `downgrade` to a specific revision;
 
@@ -136,3 +136,7 @@ x add script(-s) for resetting project state to default;    // partial reset can
     - scenarios:
         - apply db migration (manually, upgrade / downgrade);
         - deploy a commit to production (no prod started, green -> blue, blue -> green);
+
+- complete readme file;
+
+? additional;

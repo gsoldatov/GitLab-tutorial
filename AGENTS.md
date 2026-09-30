@@ -158,6 +158,32 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - The clone is the developer's, over HTTP with the developer PAT in its `origin` URL —
   which is one reason it lives under the gitignored `temp/`.
 
+### Scenario branches
+
+- Five local branches carry the scenario payload, one commit each off `main`, and none of
+  them is published: `setup_project.sh` still sends `main` alone, so a scenario pushes the
+  branch it needs from the developer's clone by hand.
+- `valid-feature` — an `items` table with its migration, `POST /items` (201, 409 on a
+  duplicate name, 422) and its tests. The one branch meant to merge, and its migration
+  doubles as the "new db migration" scenario.
+- `failing-tests` — one test asserting the wrong `/health` response; pytest is the only
+  job that fails.
+- `failing-linting` — `src/lint_probe.py`, an unused import ruff rejects; `lint` is the
+  only job that fails.
+- `failing-typecheck` — `src/type_probe.py`, a `-> int` function returning a string;
+  `typecheck` is the only job that fails.
+- `valid-conflicting-feature` — `valid-feature`'s feature with a `GET /items/{item_id}`
+  handler instead of create, `description` renamed `item_description` throughout, and
+  read-route tests; the migration keeps the same path and revision, so there is still one
+  Alembic head. It is based on `main`, not on `valid-feature`, so merging it after
+  `valid-feature` conflicts in the six files whose content differs — `src/db/models.py`,
+  the migration, `src/models/item.py`, `src/routes/items.py` and both item test utilities
+  — and that resolution is where the `item_description` / `description` mismatch has to be
+  reconciled.
+- Apart from that pair the branches are deliberately conflict-free: the registration and
+  test-facade edits share byte-identical changes that merge cleanly, and each `failing-*`
+  branch adds one file of its own.
+
 ### CI configuration
 
 - Single file `project/.gitlab-ci.yml`, no `include`s. `setup_project.sh` points the
@@ -311,8 +337,7 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 ## Deferred (not v1)
 
 SAST/security scanning, automatic versioning, periodic cleanup jobs, and the scenario
-harness. Reserved scenario branches: `valid app update`, `broken app update`,
-`new db migration`.
+harness.
 
 
 ## Settled by the first real run
