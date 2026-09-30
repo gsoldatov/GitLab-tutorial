@@ -1,3 +1,4 @@
+from tests.utils.data_generator.items import ItemsDataGenerator
 from tests.utils.data_generator.users import UsersDataGenerator
 
 
@@ -6,3 +7,4 @@ class DataGenerator:
 
     def __init__(self) -> None:
         self.users = UsersDataGenerator()
+        self.items = ItemsDataGenerator()
