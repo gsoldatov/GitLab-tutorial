@@ -35,6 +35,9 @@ pipeline, the deploy and the migration jobs are still design.
   - `gitlab_credentials/` — admin/owner/developer PATs and the runner token, which
     `cleanup.sh` removes as well;
   - `deployment/nginx/` (the nginx conf the deploy job swaps between blue and green) and `repo_copies/dev/` (the developer's clone, rebuilt by `setup_project.sh`) — disposable;
+  - `cache/runner/` — the job caches, mounted at `/cache` in every job container: a
+    shared `uv/`, plus `ruff/<project>/` and `mypy/<project>/`. Disposable like the rest
+    of `temp/`: losing it only costs the next job a cold run;
 - `docs/` — `to-do.md` is the task list; `plan-suggestions.md` is a non-authoritative reference of possible approaches, **not** a plan.
 
 ## Terminology
@@ -67,10 +70,11 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - One runner, **instance-scoped**, Docker executor. Registered once, so it survives
   project deletion and reset can freely recreate the project.
 - The runner container mounts `/var/run/docker.sock`. The docker executor mounts that
-  same socket, plus the repo's `temp/deployment`, into every job container, at
-  **identical absolute paths** on both sides of the daemon boundary. That directory is
-  pre-created and nothing writes to it yet: it is the shape mounts a deployment adds
-  take, not a deployment that exists.
+  same socket, plus the repo's `temp/deployment` and `temp/cache/runner`, into every job
+  container, at **identical absolute paths** on both sides of the daemon boundary.
+  `temp/deployment` is pre-created and nothing writes to it yet: it is the shape mounts
+  a deployment adds take, not a deployment that exists. `temp/cache/runner` holds the
+  job caches - see Job caches below.
 - DooD is a deliberate, documented anti-pattern: Docker here is rootful, so every job
   gets host root. The executor's volume mounts are per runner configuration (per
   `[[runners]]` block), not per job, so lint and test jobs inherit it too. Do not
@@ -100,10 +104,28 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
   `${DEPLOY_DIR}/nginx/`), which exists identically on both sides.
 - The runner's `volumes` list is the extension point for that: it is per runner
   configuration and reaches every job, so a deployment adds the mounts it needs there.
-  `temp/deployment` is the first - pre-created so setup owns it rather than the daemon,
-  still empty, and where the deploy job will write the nginx conf it swaps between blue
-  and green.
+  `temp/deployment` is pre-created so setup owns it rather than the daemon, still empty,
+  and where the deploy job will write the nginx conf it swaps between blue and green.
 - `db` uses a **named volume** — daemon-side, immune to the above.
+
+### Job caches on the host
+
+- `/cache` is the docker executor's cache directory, and the runner mounts the repo's
+  `temp/cache/runner` there so that anything written to it outlives the job container.
+  Setup pre-creates the directory, the way it does `temp/deployment`.
+- uv's cache is one shared `uv/`: it is content-addressed, so a single copy serves every
+  project and every version of a dependency.
+- ruff and mypy are per project — `ruff/<path-slug>/` and `mypy/<path-slug>/`, the slug
+  being `$CI_PROJECT_PATH_SLUG` — because both are keyed by the project's own files. mypy
+  is the payoff: its cache turns a ~70s cold check into ~2s.
+- This replaces GitLab's managed cache rather than complementing it. A `cache:` in
+  `.gitlab-ci.yml` archives a directory per job, but without `[runners.cache]` the
+  runner's local copy is not backed by a host directory, so it was written and then lost
+  with the job container — which is why uv re-downloaded on every run. Do not add
+  `cache:` back without also giving its local backend a host mount.
+- uv cannot hardlink from the host-mounted cache into the container's `.venv` and falls
+  back to copying, warning about it each job. Deliberate and accepted: the two are on
+  different filesystems, and the copy is cheap next to the downloads it replaces.
 
 ### Project registration
 
@@ -128,13 +150,14 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 
 ### CI configuration
 
-- Single file `project/.gitlab-ci.yml`, no `include`s. The CI task points the project's
-  CI/CD configuration file path at it (verify REST writability; UI as fallback);
-  `setup_project.sh` deliberately does not, because the file it would name does not
-  exist yet. Until it is set, the project has no pipeline at all.
-- `rules: changes` and `cache: key: files` are repo-root-relative, so they carry a
-  `project/` prefix. Commands run via `cd project` in `before_script`; `after_script`
-  starts fresh at `$CI_PROJECT_DIR`.
+- Single file `project/.gitlab-ci.yml`, no `include`s. `setup_project.sh` points the
+  project's CI/CD configuration file path at it, after the push so that setup itself
+  starts no pipeline.
+- `rules: changes` is repo-root-relative, so it carries a `project/` prefix. Commands run
+  via `cd project` in `before_script`; `after_script` starts fresh at `$CI_PROJECT_DIR`.
+- The check jobs take their caches from the mounted `/cache` rather than a `cache:`
+  keyword: `UV_CACHE_DIR` at the top of the file, `RUFF_CACHE_DIR` and `MYPY_CACHE_DIR`
+  in the `lint` and `typecheck` jobs. See Job caches above.
 - Stages: lint, test, build, migrate, deploy. MR pipelines run lint/test/build; main
   runs those plus automatic `upgrade head` and a manual deploy.
 - `resource_group` on migrate and deploy, otherwise two pipelines race the same nginx
@@ -302,10 +325,12 @@ harness. Reserved scenario branches: `valid app update`, `broken app update`,
   `lib/common.sh` therefore replaces the rule instead of updating it. This is the
   opposite of what the current API documentation describes, and was found by probing the
   instance.
+- `ci_config_path` is writable through the REST API on the pinned version: the project
+  reports the path back after the write, and `setup_project.sh` sets it on every run.
+  `set_ci_config_path` keeps a gitlab-rails fallback for the day it is not, but that
+  path has never been taken.
 
 ## Open — verify before it is needed
 
-- Whether `ci_config_path` is writable through the REST API on the pinned version
-  (needed by the project task; the project's CI file is not at the repository root).
 - How much disk the app images and build cache add. The CE image alone already eats
   into the 20 GB that preflight's warning assumes, so expect that warning to fire.
