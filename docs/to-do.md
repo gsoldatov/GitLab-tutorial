@@ -78,25 +78,32 @@ x add script(-s) for resetting project state to default;    // partial reset can
     + should forbid merge if any errors occur ("Pipelines must succeed");
     + check if postgres service container does not publish any ports on host;   // so there are no conflicts between simultaneously running services
 
-- additional branches for testing (scenarios, deferred):
-    - a valid feature branch:
+- additional branches for testing:
+    - `valid-feature` branch:
         - `items` table + create route handler;
         - integration tests for new route handler;
-    - an invalid feature branch:
+    - `failing-tests` branch:
         - additional test case that intentionally fails;
+    - `failing-linting` branch:
+        - additional file in src/ dir that has an intentional linting error;
+    - `failing-typecheck` branch:
+        - additional file in src/ dir that has an intentional typing error;
     x a branch with a new db migration; // should be covered by valid feature branch
 
-
-- implement a few scenarios for testing CI:
-    - use temp directory to setup developer's repo copy:
-        - use the copy to push branches to GL and trigger merge requests;
+- implement scenarios for testing CI:
+    - write scenarios/<scenario>.md file for each scenario:
+        - should contain:
+            - basic description;
+            - prerequisites & reset info;
+            - a list of commands and / or instructions on how to run the scenario;
+            - commands or instructions on how to verify that scenario was successfull completed;
     - scenarios:
-        - valid app update merge request;
+        - valid feature merge request;
+        - failing merge request;    // list all failing branches there
         - broken app update merge request;
         - new db migration merge request;
         ? deployment of a commit to prod;   // or trigger via GL UI instead
         ? db migration upgrade / downgrade;
-    - scenarios should be implemented as automated scripts and/or markdown with instructions on how to run them;
 
 - test scripts:
     - 2 test jobs can work simultaneously;
@@ -124,3 +131,8 @@ x add script(-s) for resetting project state to default;    // partial reset can
 
 - remove prod containers in cleanup script;
 - ensure all runner containers are deleted by cleanup;
+
+- implement scenarios for testing deployment:
+    - scenarios:
+        - apply db migration (manually, upgrade / downgrade);
+        - deploy a commit to production (no prod started, green -> blue, blue -> green);
