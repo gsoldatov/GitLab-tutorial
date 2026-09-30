@@ -18,24 +18,29 @@ check_interval = 3
   [runners.docker]
     image = "__RUNNER_EXECUTOR_IMAGE__"
 
-    # The whole design rests on this socket: every job builds images and runs the
-    # production stack through the host's daemon. Nothing below is privileged,
-    # but the socket alone is enough to do anything on the host, which is also
-    # why every job is host-root-equivalent.
-    #
     # These mounts are per runner configuration (per `[[runners]]` block), not per
     # job, so the lint and test jobs inherit the socket as well.
-    #
-    # temp/deployment is pre-created and unused: nothing writes to it yet. It is
-    # here as the place to add a mount when a deployment needs one, and it shows
-    # the shape such a mount has to take - the same absolute path inside the job
-    # and on the host, which is what makes a bind mount resolve on both sides of
-    # the daemon boundary. The deploy job will write the nginx configuration it
-    # swaps between blue and green to temp/deployment/nginx/; anything else it
-    # needs goes under temp/deployment/ and needs no new mount.
     volumes = [
+      # The whole design rests on this socket: every job builds images and runs
+      # the production stack through the host's daemon. Nothing here is
+      # privileged, but the socket alone is enough to do anything on the host,
+      # which is also why every job is host-root-equivalent.
       "/var/run/docker.sock:/var/run/docker.sock",
+
+      # temp/deployment is pre-created and unused: nothing writes to it yet. It is
+      # here as the place to add a mount when a deployment needs one, and it shows
+      # the shape such a mount has to take - the same absolute path inside the job
+      # and on the host, which is what makes a bind mount resolve on both sides of
+      # the daemon boundary. The deploy job will write the nginx configuration it
+      # swaps between blue and green to temp/deployment/nginx/; anything else it
+      # needs goes under temp/deployment/ and needs no new mount.
       "__REPO_ROOT__/temp/deployment:__REPO_ROOT__/temp/deployment",
+
+      # Where uv's cache lands (the CI config points it at /cache/uv), mounted
+      # from the host so it outlives the job. GitLab's managed cache - a `cache:`
+      # in .gitlab-ci.yml - is the alternative, but without [runners.cache] its
+      # local copy does not outlive the job container.
+      "__REPO_ROOT__/temp/cache/runner:/cache",
     ]
     privileged = false
 

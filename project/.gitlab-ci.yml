@@ -7,9 +7,11 @@
 stages: [lint, test]
 
 variables:
-  # The runner caches this directory, so uv's downloads are paid for once per
-  # uv.lock rather than once per job.
-  UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+  # The runner mounts a host directory at /cache (see the volumes in
+  # gitlab/templates/runner-config.toml.tmpl), so uv's cache lives outside the
+  # job container and survives into the next pipeline: the packages one run
+  # downloads are not downloaded again.
+  UV_CACHE_DIR: /cache/uv
   # Fail on a stale uv.lock rather than resolving something else, and never let
   # uv fetch a Python: the job image's interpreter is the pin.
   UV_FROZEN: "1"
@@ -29,17 +31,13 @@ workflow:
     # Run when pushing to a branch without an open MR
     - if: $CI_COMMIT_BRANCH
 
-# Shared by the three check jobs. cache:key:files and rules:changes are both
-# resolved from the repository root, so they carry the app's prefix.
+# Shared by the three check jobs. rules:changes is resolved from the repository
+# root, so it carries the app's prefix.
 #
 # The tag pins the Python interpreter; uv within the image floats, because no
 # published tag combines a uv version with a Python one.
 .python:
   image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
-  cache:
-    key:
-      files: [project/uv.lock]
-    paths: [.uv-cache]
   before_script:
     - cd project
     - uv sync --frozen
