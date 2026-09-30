@@ -8,9 +8,10 @@ stages: [lint, test]
 
 variables:
   # The runner mounts a host directory at /cache (see the volumes in
-  # gitlab/templates/runner-config.toml.tmpl), so uv's cache lives outside the
-  # job container and survives into the next pipeline: the packages one run
-  # downloads are not downloaded again.
+  # gitlab/templates/runner-config.toml.tmpl), so a cache there survives into the
+  # next pipeline instead of being rebuilt. uv's is one shared directory,
+  # because its cache is content-addressed; ruff's and mypy's are built from the
+  # project's own files, so each is scoped per project in the jobs below.
   UV_CACHE_DIR: /cache/uv
   # Fail on a stale uv.lock rather than resolving something else, and never let
   # uv fetch a Python: the job image's interpreter is the pin.
@@ -50,6 +51,9 @@ workflow:
 lint:
   extends: .python
   stage: lint
+  variables:
+    # ruff's cache is built from the files it linted, so it is scoped per project.
+    RUFF_CACHE_DIR: /cache/ruff/$CI_PROJECT_PATH_SLUG
   script:
     # Gate and report are separate invocations on purpose: `ruff check --diff`
     # implies --fix-only and exits 0, so it can only ever describe fixes.
@@ -66,6 +70,9 @@ lint:
 typecheck:
   extends: .python
   stage: lint
+  variables:
+    # mypy's cache is built from the modules it checked, so it is scoped per project.
+    MYPY_CACHE_DIR: /cache/mypy/$CI_PROJECT_PATH_SLUG
   script:
     - uv run mypy
 

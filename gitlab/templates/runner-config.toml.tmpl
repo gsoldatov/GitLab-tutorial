@@ -36,10 +36,10 @@ check_interval = 3
       # needs goes under temp/deployment/ and needs no new mount.
       "__REPO_ROOT__/temp/deployment:__REPO_ROOT__/temp/deployment",
 
-      # Where uv's cache lands (the CI config points it at /cache/uv), mounted
-      # from the host so it outlives the job. GitLab's managed cache - a `cache:`
-      # in .gitlab-ci.yml - is the alternative, but without [runners.cache] its
-      # local copy does not outlive the job container.
+      # The root the jobs' tool caches sit under (uv, ruff, mypy - see the CI
+      # config), mounted from the host so they outlive the job. GitLab's managed
+      # cache - a `cache:` in .gitlab-ci.yml - is the alternative, but without
+      # [runners.cache] its local copy does not outlive the job container.
       "__REPO_ROOT__/temp/cache/runner:/cache",
     ]
     privileged = false
