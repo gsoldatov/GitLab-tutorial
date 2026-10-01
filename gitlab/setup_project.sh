@@ -214,6 +214,17 @@ phase_dev_copy() {
   git -C "$DEV_COPY" config user.name "$GITLAB_DEVELOPER_USERNAME"
   git -C "$DEV_COPY" config user.email "$GITLAB_DEVELOPER_EMAIL"
 
+  # The clone starts with main alone, because that is all GitLab holds; every
+  # branch of this repository is then copied in as a local branch, so a scenario
+  # has its branch already and only has to push it. The fetch goes by path rather
+  # than through a named remote, so origin stays the clone's only remote, and it
+  # reads refs/heads - never this repository's working tree, exactly as the push
+  # to GitLab does. --update-head-ok is needed only because main is the checked-out
+  # branch, and without a + the update stays a no-op rather than a force.
+  git -C "$DEV_COPY" fetch --quiet --update-head-ok "$REPO_ROOT" 'refs/heads/*:refs/heads/*' \
+    || die "could not copy this repository's branches into $DEV_COPY"
+  log "branches       $(git -C "$DEV_COPY" for-each-ref --format='%(refname:short)' refs/heads | tr '\n' ' ')"
+
   log "cloned         $DEV_COPY at $(git -C "$DEV_COPY" rev-parse --short HEAD)"
 }
 
@@ -223,7 +234,7 @@ phase_report() {
   log "members        $GITLAB_OWNER_USERNAME (maintainer), $GITLAB_DEVELOPER_USERNAME (developer)"
   log "clone          temp/repo_copies/dev, origin only, pushing as $GITLAB_DEVELOPER_USERNAME"
   log "ci             $CI_CONFIG_PATH; merging into $MAIN_BRANCH needs a green pipeline"
-  log "branches       only $MAIN_BRANCH is published; push a scenario branch from the clone when one is needed"
+  log "branches       $MAIN_BRANCH is published to GitLab; the clone carries every other local branch, ready to push"
   log "restore        re-run this script to delete and rebuild both"
 }
 
