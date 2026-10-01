@@ -1,9 +1,14 @@
 TODO complete the file after project is finished:
-- description & architecture
-- project layout
-- scenario runs
+- description
+- architecture
+- users
+- project layout & pipeline
+- setup
 - how to access GL outside of VM
-? reorganize commands
+- scenario runs
+- other commands
+- how to run tests and linting locally
+? review reorganize commands
 ???
 
 
@@ -22,6 +27,9 @@ cp gitlab/.env.example gitlab/.env
 ./gitlab/setup_project.sh
 ```
 
+# Work Scenarios
+
+`scenarios/` directory contains contains a set of instructions on how to work with the project managed by GitLab. See [scenarios/README.md](scenarios/README.md) for details.
 
 # Reset & Teardown
 

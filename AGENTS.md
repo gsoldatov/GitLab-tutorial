@@ -40,6 +40,9 @@ and migration jobs are still design.
     shared `uv/`, plus `ruff/<project>/` and `mypy/<project>/`. Disposable like the rest
     of `temp/`: losing it only costs the next job a cold run;
 - `docs/` — `to-do.md` is the task list; `plan-suggestions.md` is a non-authoritative reference of possible approaches, **not** a plan.
+- `scenarios/` — the manual runbooks: `README.md` for what every scenario shares
+  (prerequisites, the environment block, the accounts, reset, publishing a branch), then
+  one file per scenario. Documentation only: no script, no artifact, nothing CI reads.
 
 ## Terminology
 
@@ -147,7 +150,8 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
   `project/` prefix and `rules: changes` / `cache: key: files` carry it. What is
   published is the local `refs/heads/main` and nothing else: neither HEAD nor the working
   tree takes part, so a checkout of another branch, or uncommitted work, cannot change
-  what lands — and other branches are pushed by hand from the clone.
+  what lands. The clone is then seeded with the rest of this repository's `refs/heads` as
+  local branches, so a scenario has its branch already and only has to push it.
 - The project is created **empty**, with no README: an initial commit would leave the
   pushed history needing a merge it has no reason to have.
 - Members are `owner` (Maintainer) and `developer` (Developer); `tutorial-admin` is the
@@ -161,8 +165,8 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 ### Scenario branches
 
 - Five local branches carry the scenario payload, one commit each off `main`, and none of
-  them is published: `setup_project.sh` still sends `main` alone, so a scenario pushes the
-  branch it needs from the developer's clone by hand.
+  them is published to GitLab: `setup_project.sh` sends `main` alone and copies the rest
+  into the developer's clone, so a scenario pushes the branch it needs and nothing more.
 - `valid-feature` — an `items` table with its migration, `POST /items` (201, 409 on a
   duplicate name, 422) and its tests. The one branch meant to merge, and its migration
   doubles as the "new db migration" scenario.
@@ -183,6 +187,32 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - Apart from that pair the branches are deliberately conflict-free: the registration and
   test-facade edits share byte-identical changes that merge cleanly, and each `failing-*`
   branch adds one file of its own.
+
+### Scenario runbooks
+
+- `scenarios/` holds the runbooks a person follows by hand in the web UI: `README.md` for
+  what every scenario shares, then `valid-merge-request.md`, `failing-merge-requests.md`
+  and `conflicting-merge-request.md`. Prose, not a harness - the deferred item in
+  [Deferred](#deferred-not-v1) is the automation, and these runbooks are what it would
+  automate.
+- Publishing goes through the developer's clone: setup has already seeded it with every local
+  branch, so a scenario only runs `git -C temp/repo_copies/dev push -u origin <branch>`. The
+  clone's `origin` already carries the developer PAT, so the push authenticates as the
+  developer without a credential prompt, and the branches came from this repository's
+  `refs/heads` rather than its working tree, which keeps uncommitted work out of what is
+  published.
+- The failing runbook is one file listing all three branches. The three failures differ
+  only in which job goes red, so a table of branch, file, failing job and the skipped
+  `test` stage says it in one page, where three procedures would repeat themselves.
+- The conflict runbook resolves in GitLab's inline editor rather than on the command line,
+  because the resolution is the thing worth showing in the UI. It states the invariants the
+  merged tree has to satisfy - one migration, one column name across migration, ORM,
+  Pydantic and raw SQL, both handlers, both test helpers - and lets the pipeline be the
+  judge: a resolution that satisfies them is green, and the failing test names the
+  invariant that was broken. Deliberately not a step-by-step diff.
+- The protected-ref checks - the developer cannot merge the merge request, and cannot push
+  `main` even with a local commit to push - live in the valid runbook, at the point where
+  the reader is already looking at that merge request.
 
 ### CI configuration
 

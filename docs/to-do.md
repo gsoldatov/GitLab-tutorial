@@ -92,21 +92,22 @@ x add script(-s) for resetting project state to default;    // partial reset can
         + additional file in src/ dir that has an intentional typing error;
     x a branch with a new db migration; // should be covered by valid feature branch
 
-- implement scenarios for testing CI:
-    - write scenarios/<scenario>.md file for each scenario:
-        - should contain:
-            - basic description;
-            - prerequisites & reset info;
-            - a list of commands and / or instructions on how to run the scenario;
-            - commands or instructions on how to verify that scenario was successfull completed;
-    - scenarios:
-        - valid feature merge request;
-        - failing merge requests;    // list all failing branches there
-        - conflicting merge request;    // apply valid feature => apply valid conflicting feature and resolve conflicts, including those which cause test failures
++ implement scenarios for testing CI:
+    + write scenarios/<scenario>.md file for each scenario:
+        + should contain:
+            + basic description;
+            + prerequisites & reset info;
+            + a list of commands and / or instructions on how to run the scenario;
+            + commands or instructions on how to verify that scenario was successfull completed;
+    + scenarios:
+        + valid feature merge request;
+        + failing merge requests;    // list all failing branches there
+        + conflicting merge request;    // apply valid feature => apply valid conflicting feature and resolve conflicts, including those which cause test failures
+        + direct push to main;  // should be prohibited
         
-- test scripts:
+x test scripts:
     x 2 test jobs can work simultaneously;      // was tested manually
-    - main branch in GL is protected from being pushed into;
+    x main branch in GL is protected from being pushed into;
 
 - configure deployment flow for the project:
     - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
