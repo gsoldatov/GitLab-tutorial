@@ -15,6 +15,15 @@ check_interval = 3
   token = "${RUNNER_TOKEN}"
   executor = "docker"
 
+  environment = [
+    # Absolute host path to the deployment directory, exported into every job
+    # container. A compose bind mount is resolved by the client to an absolute path
+    # and then read by the daemon on the host, while a job's own checkout lives at
+    # a container-only path; naming this directory lets the deploy job's production
+    # compose file source its nginx bind from it.
+    "DEPLOY_DIR=__REPO_ROOT__/temp/deployment"
+  ]
+
   [runners.docker]
     image = "__RUNNER_EXECUTOR_IMAGE__"
 
@@ -27,13 +36,12 @@ check_interval = 3
       # which is also why every job is host-root-equivalent.
       "/var/run/docker.sock:/var/run/docker.sock",
 
-      # temp/deployment is pre-created and unused: nothing writes to it yet. It is
-      # here as the place to add a mount when a deployment needs one, and it shows
-      # the shape such a mount has to take - the same absolute path inside the job
-      # and on the host, which is what makes a bind mount resolve on both sides of
-      # the daemon boundary. The deploy job will write the nginx configuration it
-      # swaps between blue and green to temp/deployment/nginx/; anything else it
-      # needs goes under temp/deployment/ and needs no new mount.
+      # The deployment directory, at the same absolute path inside the job and on
+      # the host - which is what makes the production compose bind mount resolve
+      # on both sides of the daemon boundary. The deploy job writes the nginx
+      # configuration it swaps between blue and green to nginx/ here, and reads
+      # the mirrored .production.env next to it; the jobs name the path through
+      # DEPLOY_DIR above.
       "__REPO_ROOT__/temp/deployment:__REPO_ROOT__/temp/deployment",
 
       # The root the jobs' tool caches sit under (uv, ruff, mypy - see the CI

@@ -40,6 +40,10 @@ Destructive on purpose: an existing project at this path is deleted first, and
 temp/repo_copies/dev is deleted and cloned again - so any branch or merge request
 left over from an earlier scenario goes with them.
 
+The gitignored project configs are created from project/.env.example when
+missing - project/.env and project/.production.env - and the production one is
+mirrored into temp/deployment for the deploy and migrate jobs.
+
   -h, --help    show this
 EOF
 }
@@ -77,6 +81,41 @@ phase_preflight() {
   log "GitLab         $(gitlab_url)"
   log "project        $PROJECT_PATH"
   log "source         $MAIN_BRANCH at $(git -C "$REPO_ROOT" log -1 --format='%h %s' "refs/heads/$MAIN_BRANCH")"
+}
+
+# Ensures the two gitignored project env files exist, then mirrors the
+# production one into the deployment directory the jobs mount.
+#
+# Creating and continuing - rather than stopping for review the way
+# setup_gitlab.sh does with gitlab/.env - is deliberate: this script is the reset
+# run before every scenario, and the placeholder defaults are usable as they are.
+phase_config() {
+  step "Project configuration"
+
+  [ -f "$PROJECT_ENV_EXAMPLE" ] || die "$PROJECT_ENV_EXAMPLE is missing; it is committed and should exist"
+
+  ensure_project_env "$PROJECT_ENV"
+  ensure_project_env "$PROJECT_PROD_ENV"
+
+  # The jobs cannot see project/.production.env: it is gitignored, so it is not
+  # in their checkout. This directory is mounted into every job, so the mirror is
+  # how --env-file and the compose env_file reach it.
+  mkdir -p -- "$TEMP_DEPLOYMENT"
+  cp -- "$PROJECT_PROD_ENV" "$TEMP_DEPLOYMENT_ENV"
+  log "mirrored       project/.production.env -> temp/deployment/.production.env"
+}
+
+# Creates <target> from the committed example when it is missing; an existing
+# file is never touched.
+ensure_project_env() {
+  local target="$1"
+
+  if [ -f "$target" ]; then
+    return 0
+  fi
+
+  cp -- "$PROJECT_ENV_EXAMPLE" "$target"
+  log "created        ${target#"$REPO_ROOT"/} from .env.example"
 }
 
 phase_delete() {
@@ -234,6 +273,8 @@ phase_report() {
   log "members        $GITLAB_OWNER_USERNAME (maintainer), $GITLAB_DEVELOPER_USERNAME (developer)"
   log "clone          temp/repo_copies/dev, origin only, pushing as $GITLAB_DEVELOPER_USERNAME"
   log "ci             $CI_CONFIG_PATH; merging into $MAIN_BRANCH needs a green pipeline"
+  log "config         project/.env and project/.production.env, created from .env.example if absent"
+  log "deployment     .production.env mirrored to temp/deployment for the deploy and migrate jobs"
   log "branches       $MAIN_BRANCH is published to GitLab; the clone carries every other local branch, ready to push"
   log "restore        re-run this script to delete and rebuild both"
 }
@@ -249,6 +290,7 @@ main() {
   done
 
   phase_preflight
+  phase_config
   phase_delete
   phase_create
   phase_members
