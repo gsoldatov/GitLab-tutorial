@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
 # Removes everything this repository started: the GitLab instance and its runner,
-# the local dev database, the networks they created, the job containers and cache
-# volumes the runner left behind, and everything under temp/.
+# the local dev database, the simulated production stack, the networks they
+# created, the job containers and cache volumes the runner left behind, the API
+# images the deploy and migrate jobs built, and everything under temp/.
 #
-# Images are kept, so a rebuild after this starts from what is already pulled.
+# The images every container is pulled from are kept, so a rebuild after this
+# starts from what is already present.
 #
 # This is a full wipe, not a reset. temp/gitlab/ holds GitLab's database, secrets
 # and repositories, and temp/gitlab_credentials/ the PATs and the runner token, so
@@ -24,17 +26,6 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-# Compose project names, as docker records them in container, volume and network
-# labels. Each is pinned by `name:` in its compose file, which is the source of
-# truth: docker records the label at creation time and nothing here reads a
-# compose file back, so these constants have to match it by hand.
-GITLAB_PROJECT="gitlab-tutorial"
-DEV_PROJECT="tutorial-dev"
-# project/docker-compose.prod.yml does not exist yet. When it lands it must
-# declare `name: tutorial-prod`; until then this entry matches nothing and the
-# sweep is a no-op.
-PROD_PROJECT="tutorial-prod"
-
 # The runner labels everything it creates through the host daemon, and it cannot
 # return a token twice, so a discarded registration leaves its job containers and
 # cache volumes behind with nothing left to collect them. The label is what makes
@@ -52,8 +43,9 @@ FAILED=0
 
 usage() {
   cat <<'EOF'
-Remove every container, volume and network this repository created, and empty
-temp/ - GitLab's own state and the credentials included. Images are kept.
+Remove every container, volume and network this repository created, the API
+images its jobs built, and empty temp/ - GitLab's own state and the credentials
+included. The images every container is pulled from are kept.
 
 To reset only the tutorial project between scenarios, re-run
 gitlab/setup_project.sh instead. To come back after this, run
@@ -88,53 +80,33 @@ phase_preflight() {
       || die "could not pull $WIPE_IMAGE; without it the root-owned directories under temp/ cannot be removed"
   fi
 
-  log "projects       $GITLAB_PROJECT, $DEV_PROJECT, $PROD_PROJECT"
+  log "projects       $GITLAB_COMPOSE_PROJECT, $DEV_COMPOSE_PROJECT, $PROD_COMPOSE_PROJECT"
   log "temp           $TEMP_DIR (all of it)"
-}
-
-# remove_resources <container|volume|network> <docker --filter expression> <what>
-#
-# Docker's own filter does the scoping: only resources carrying that label come
-# back, so nothing else on the daemon can be matched by accident. A failure is
-# reported and counted rather than fatal, so one stuck volume does not stop the
-# rest of the teardown.
-remove_resources() {
-  local kind="$1" filter="$2" what="$3" ids count
-
-  case "$kind" in
-    container) ids="$(docker container ls -aq --filter "$filter" 2>/dev/null || true)" ;;
-    volume)    ids="$(docker volume ls -q --filter "$filter" 2>/dev/null || true)" ;;
-    network)   ids="$(docker network ls -q --filter "$filter" 2>/dev/null || true)" ;;
-  esac
-  [ -n "$ids" ] || return 0
-
-  count="$(printf '%s\n' "$ids" | wc -l | tr -d ' ')"
-  # shellcheck disable=SC2086
-  if [ "$kind" = network ]; then
-    docker network rm $ids >/dev/null 2>&1 || { warn "could not remove $count $what"; FAILED=1; return 0; }
-  else
-    docker "$kind" rm -f $ids >/dev/null 2>&1 || { warn "could not remove $count $what"; FAILED=1; return 0; }
-  fi
-  log "removed        $count $what"
 }
 
 phase_resources() {
   step "Containers, volumes and networks"
 
-  # Containers first, then volumes, then networks: a volume cannot be removed
-  # while a container holds it, and a compose network goes once its containers
-  # have.
+  # tear_down_compose_project removes containers, then volumes, then networks, so
+  # one stuck volume does not stop the rest: it reports a failure and the loop
+  # carries on, and the report at the end is what tells the two apart.
   local project
-  for project in "$GITLAB_PROJECT" "$DEV_PROJECT" "$PROD_PROJECT"; do
-    remove_resources container "label=com.docker.compose.project=$project" "$project containers"
-    remove_resources volume    "label=com.docker.compose.project=$project" "$project volumes"
-    remove_resources network   "label=com.docker.compose.project=$project" "$project networks"
+  for project in "$GITLAB_COMPOSE_PROJECT" "$DEV_COMPOSE_PROJECT" "$PROD_COMPOSE_PROJECT"; do
+    tear_down_compose_project "$project" || FAILED=1
   done
 
   # What the runner leaves carries no compose project label, because the executor
-  # created it through the daemon rather than compose.
-  remove_resources container "label=$RUNNER_LABEL" "leftover runner job containers"
-  remove_resources volume    "label=$RUNNER_LABEL" "runner cache volumes"
+  # created it through the daemon rather than compose. The unlabeled anonymous
+  # volumes a service image's VOLUME directive produces are not collectable:
+  # docker gives them no project label and no way to attribute them, and the
+  # runner removes them itself when a job finishes cleanly.
+  remove_resources container "label=$RUNNER_LABEL" "leftover runner job containers" || FAILED=1
+  remove_resources volume    "label=$RUNNER_LABEL" "runner cache volumes" || FAILED=1
+}
+
+phase_images() {
+  step "Built API images"
+  remove_api_images || FAILED=1
 }
 
 phase_temp() {
@@ -164,8 +136,8 @@ phase_report() {
     exit 1
   fi
 
-  log "images         kept, so a rebuild skips pulling and building them again"
-  log "gone           $GITLAB_PROJECT, $DEV_PROJECT, $PROD_PROJECT, runner leftovers and temp/"
+  log "images         built API images removed; the images containers are pulled from are kept"
+  log "gone           $GITLAB_COMPOSE_PROJECT, $DEV_COMPOSE_PROJECT, $PROD_COMPOSE_PROJECT, runner leftovers and temp/"
   log "to come back   gitlab/setup_gitlab.sh    # a first boot again, so allow minutes"
   log "               gitlab/setup_project.sh   # project, protection, clone"
 }
@@ -182,6 +154,7 @@ main() {
 
   phase_preflight
   phase_resources
+  phase_images
   phase_temp
   phase_report
 }

@@ -17,7 +17,7 @@ The following bash scripts should be used to achieve that state:
 
 After this, follow the instructions inside a specific scenario file.
 
-`gitlab/cleanup.sh` can be called after work with the project is complete to remove Docker assets used by this project (except for images) and delete `temp/` dir.
+`gitlab/cleanup.sh` can be called after work with the project is complete to remove Docker assets used by this project (base images are kept; the API images the jobs built are removed) and delete `temp/` dir.
 
 # Project Architecture
 

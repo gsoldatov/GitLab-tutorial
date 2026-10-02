@@ -34,10 +34,11 @@ cp gitlab/.env.example gitlab/.env
 # Reset & Teardown
 
 ```bash
-# Reset the project in GitLab and temp dir to its default (remove any made commits to main branch, etc.)
+# Reset the project in GitLab and temp dir to its default (remove any made commits to main
+# branch, etc.), tear down the production deployment, and delete the images built for it.
 ./gitlab/setup_project.sh
 
-# Remove all project containers and temp files
+# Remove all project containers, volumes, built API images and temp files
 ./gitlab/cleanup.sh
 ```
 

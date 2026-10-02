@@ -28,7 +28,7 @@ exercise them are still to come.
   - `setup_gitlab.sh` (the instance and its runner) and `setup_project.sh` (the tutorial
     project and the developer's clone);
   - `cleanup.sh` — the full teardown: every container, volume and network this repo
-    created, plus all of `temp/`;
+    created, the API images its jobs built, plus all of `temp/`;
   - `lib/common.sh` — shared helpers, sourced by the scripts;
   - `lib/deployment.sh` and `lib/migration.sh` — the bodies of the two manual jobs. Unlike
     `common.sh` they run inside a job container, not on the host;
@@ -250,7 +250,8 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
   daemon over the socket, tagging `gitlab-tutorial-api:<sha>`.
 - No registry means no registry config and no host daemon config changes; the cost is
   that build and deploy share one daemon, and a target whose image was pruned is simply
-  rebuilt from `TARGET_REF`.
+  rebuilt from `TARGET_REF`. `setup_project.sh` and `cleanup.sh` do that pruning on
+  purpose, so one image per deploy does not accumulate with nothing to collect it.
 - With no build job, the Dockerfile is validated only when a deploy or migrate job runs,
   not on merge requests. Accepted trade-off.
 - The scripts are read with `cat` rather than executed from disk because the checkout
@@ -273,7 +274,9 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - The reload matters twice over: nginx resolves upstream names once at startup, and the
   old colour is stopped only after a successful reload, so a failed reload cannot strand
   nginx on a stopped container.
-- The nginx conf is the source of truth for which colour is live.
+- The nginx conf is the source of truth for which colour is live. `setup_project.sh`
+  deletes it on reset, so a fresh scenario starts with no colour serving rather than
+  inheriting the previous one.
 
 ### Migrations
 
@@ -292,13 +295,27 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - Two different operations, and the difference is what survives each of them.
 - **Reset between scenarios** is `setup_project.sh` alone: it deletes and recreates the
   GitLab project, re-pushes the base state and re-applies branch protection and members.
-  GitLab, its accounts and the instance runner are untouched, so this is the cheap loop
-  a scenario runner repeats.
+  It also tears the production stack down — containers, network and database volume —
+  deletes the nginx conf that records the live colour, and removes the
+  `gitlab-tutorial-api:*` images earlier deploys built, so a scenario starts from no
+  deployment at all. GitLab, its accounts and the instance runner are untouched, so this
+  is the cheap loop a scenario runner repeats.
 - **`cleanup.sh` is a full wipe, not a reset.** It finds resources by docker label rather
   than through a compose file: every container, volume and network of the compose projects
   this repo creates (`gitlab-tutorial`, `tutorial-dev` and `tutorial-prod`), then
   everything the runner left behind
-  (`com.gitlab.gitlab-runner.managed=true`), and finally all of `temp/`. Images are kept.
+  (`com.gitlab.gitlab-runner.managed=true`), and finally all of `temp/`. It removes the
+  built `gitlab-tutorial-api:*` images as well; the images containers are pulled from are
+  kept.
+- The two share the teardown in `lib/common.sh` — `tear_down_compose_project` and
+  `remove_api_images` — so the compose project names, the sweep order and the image
+  filter are stated once and cannot drift.
+- One volume is deliberately not collectable: a job's `postgres` service image declares
+  `VOLUME /var/lib/postgresql/data`, so Docker creates an anonymous volume carrying only
+  `com.docker.volume.anonymous` — no compose project label, no runner label, and no way
+  to attribute it back to this repository. The runner removes it itself when a job
+  finishes cleanly (`volume_keep` defaults to false), so only aborted-job leftovers
+  remain, and neither script touches them rather than risk another project's volumes.
 - The consequence, deliberately accepted: `temp/gitlab/` (GitLab's database, secrets and
   repositories) and `temp/gitlab_credentials/` both go, so the next `setup_gitlab.sh` is a
   *first boot* that mints the admin token through `gitlab-rails runner` again. Rebuild in

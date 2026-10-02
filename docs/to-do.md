@@ -130,11 +130,13 @@ x test scripts:
         + run through a one-shot `migrate` service, using the image of the target commit;
         + manual `upgrade` / `downgrade` to a specific revision;
 
-- script for resetting prod to default state:
-    ? merge with setup project;
-
-- remove prod containers in cleanup script;
-- ensure all runner containers are deleted by cleanup;
++ script for resetting prod to default state
+    + merge into setup_project.sh;
+    + tears down tutorial-prod (containers, network, db volume);
+    + clear the live-colour nginx conf;
+    + remove built API images;
++ remove prod containers and images in cleanup script;
++ ensure all runner containers are deleted by cleanup;  // the runner-managed label is swept for containers and cache volumes
 
 - implement scenarios for testing deployment:
     - scenarios:

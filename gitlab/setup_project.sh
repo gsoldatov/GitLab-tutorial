@@ -6,8 +6,10 @@
 # Deliberately not idempotent. The point of the script is to restore the
 # project's default state, so it deletes the project and the clone and builds
 # both again: a scenario can then be run over and over without its branches,
-# merge requests or deployed state leaking into the next run. Only the project and
-# the clone are touched - GitLab's own state and the credentials in
+# merge requests or deployed state leaking into the next run. The simulated
+# production stack is torn down with it - containers, network, database volume
+# and the images the deploy and migrate jobs built - so a scenario starts from
+# no deployment at all. GitLab's own state and the credentials in
 # temp/gitlab_credentials/ are left alone.
 #
 # Usage: gitlab/setup_project.sh
@@ -43,6 +45,11 @@ left over from an earlier scenario goes with them.
 The gitignored project configs are created from project/.env.example when
 missing - project/.env and project/.production.env - and the production one is
 mirrored into temp/deployment for the deploy and migrate jobs.
+
+The tutorial-prod deployment is torn down too - its containers, network and
+database volume, the nginx config that records the live colour, and the
+gitlab-tutorial-api images built for earlier deploys - so "deploy to production"
+starts from nothing.
 
   -h, --help    show this
 EOF
@@ -116,6 +123,27 @@ ensure_project_env() {
 
   cp -- "$PROJECT_ENV_EXAMPLE" "$target"
   log "created        ${target#"$REPO_ROOT"/} from .env.example"
+}
+
+# The production stack is state too: a scenario that deployed leaves a live
+# colour, a database holding data and the images built for the commit it
+# deployed, and the next scenario must not inherit any of them.
+phase_production() {
+  step "Production deployment"
+
+  tear_down_compose_project "$PROD_COMPOSE_PROJECT" \
+    || die "could not tear down the $PROD_COMPOSE_PROJECT deployment"
+
+  # The deploy job reads this file to learn which colour nginx currently serves
+  # and refuses to redeploy it. Leaving it behind would make the next deploy
+  # start convinced that a stopped colour is still live.
+  rm -f -- "$TEMP_DEPLOYMENT_NGINX/default.conf"
+  log "reset          no colour is live; the nginx config is gone"
+
+  # A failure here costs the next deploy a rebuild, so it is worth reporting
+  # rather than fatal - the project's default state is already restored.
+  remove_api_images \
+    || warn "could not remove every built API image; the next deploy rebuilds whatever is left"
 }
 
 phase_delete() {
@@ -275,6 +303,7 @@ phase_report() {
   log "ci             $CI_CONFIG_PATH; merging into $MAIN_BRANCH needs a green pipeline"
   log "config         project/.env and project/.production.env, created from .env.example if absent"
   log "deployment     .production.env mirrored to temp/deployment for the deploy and migrate jobs"
+  log "production     $PROD_COMPOSE_PROJECT torn down, no colour live, built API images removed"
   log "branches       $MAIN_BRANCH is published to GitLab; the clone carries every other local branch, ready to push"
   log "restore        re-run this script to delete and rebuild both"
 }
@@ -291,6 +320,7 @@ main() {
 
   phase_preflight
   phase_config
+  phase_production
   phase_delete
   phase_create
   phase_members
