@@ -2,9 +2,9 @@
 # pipeline lives here rather than at the repository root: setup_project.sh
 # points the project's ci_config_path at this file.
 #
-# Only the stages that have jobs; the build, migrate and deploy jobs will bring
-# theirs with them.
-stages: [lint, test]
+# Only the stages that have jobs. The check jobs run on every pipeline; the
+# deploy job is manual and lives in the deploy stage.
+stages: [lint, test, deploy]
 
 variables:
   # The runner mounts a host directory at /cache (see the volumes in
@@ -106,3 +106,24 @@ test:
     # Other app settings are copied from .env.example
     - cp .env.example .env
     - uv run pytest
+
+# Manual production deployment, run by hand from a main pipeline. The order and
+# guards live in gitlab/lib/deployment.sh.
+deploy:
+  stage: deploy
+  image: docker:24.0.5-git  # git, the Docker CLI and the Compose plugin
+  needs: []  # runnable immediately, without waiting for the checks
+  resource_group: tutorial-production  # serialise with the migrate job
+  allow_failure: true  # optional: a merged main pipeline is green without it
+  variables:
+    TARGET_REF: ""  # commit SHA or branch; empty means this commit
+    DEPLOY_COLOR: ""  # blue or green
+    NGINX_PORT: "8080"  # the compose file's published nginx port
+    GIT_DEPTH: "0"  # resolving an arbitrary commit needs full history
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  script:
+    # Read into memory: the script checks out TARGET_REF, rewriting the working
+    # tree under a shell that would otherwise be reading the file from disk.
+    - sh -c "$(cat gitlab/lib/deployment.sh)"
