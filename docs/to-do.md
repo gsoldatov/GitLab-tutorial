@@ -4,18 +4,18 @@
 + setup Python API project with a PostgreSQL db & tests;
 + configure project repo to be managed by GitLab;
 + configure jobs for merge request (linting & tests);
-- configure jobs for deploying:
-    - blue / green deployment (Nginx + 2 API containers + db container) on the same machine (separately from GL container(-s));
-    - jobs:
-        - build an image for a commit;
-        - deploy a commit to blue / green & switch between containers;
-        - upgrade / downgrade to a specific db migration;
++ configure jobs for deploying:
+    + blue / green deployment (Nginx + 2 API containers + db container) on the same machine (separately from GL container(-s));
+    + jobs:
+        x build an image for a commit;
+        + deploy a commit to blue / green & switch between containers;
+        + upgrade / downgrade to a specific db migration;
 - use-case scenario harnesses (scripts + manual instructions for adding merge requests, deploying to production, migrating db).
 
-Additional:
-    - security checks (SAST scan);
-    - automatic versioning;
-    ? GitLab & Docker cleanup;
+## Additional
+- security checks (SAST scan);
+- automatic versioning;
+? GitLab & Docker cleanup;
 
 # Detailed To-Dos
 
@@ -109,23 +109,26 @@ x test scripts:
     x 2 test jobs can work simultaneously;      // was tested manually
     x main branch in GL is protected from being pushed into;
 
-- configure deployment flow for the project:
-    - add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
-    - deployment flow:
-        - triggered manually;   // other jobs shouldn't trigger with it
-        - is parametrized with commit to deploy & flag to deploy blue or green container (manual job, runtime variables);
-        - build a production image for the specified commit;
-        - start the target container and wait for `GET /health`;
-        - redirect nginx to the correct container (render the conf, then `nginx -s reload`);
-        - stop the other container;
-        - guard deploy & migrate jobs with `resource_group`;
++ configure deployment flow for the project:
+    + add blue-green deployment;        // Nginx + 2 app containers + db (named volume), one compose project;
+    + deployment flow:
+        + triggered manually;   // other jobs shouldn't trigger with it
+        + is parametrized with GitLab variables:
+            + git ref to deploy;
+            + flag to deploy blue or green container;
+            + Nginx port published on the host; // to keep it out of project's config
+        + build a production image for the specified commit;
+        + start the target container and wait for `GET /health`;
+        + redirect nginx to the correct container (render the conf, then `nginx -s reload`);
+        + stop the other container;
+        + guard deploy & migrate jobs with `resource_group`;
     
-- configure db migrations flow:
-    - flow:
-        - triggered manually;   // other jobs shouldn't trigger with it
-        - accepts migration name and direction (upgrade / downgrade) as params;
-        - run through a one-shot `migrate` service, using the image of the target commit;
-        - manual `upgrade` / `downgrade` to a specific revision;
++ configure db migrations flow:
+    + flow:
+        + triggered manually;   // other jobs shouldn't trigger with it
+        + accepts git ref, migration name and direction (upgrade / downgrade) as params;
+        + run through a one-shot `migrate` service, using the image of the target commit;
+        + manual `upgrade` / `downgrade` to a specific revision;
 
 - script for resetting prod to default state:
     ? merge with setup project;
