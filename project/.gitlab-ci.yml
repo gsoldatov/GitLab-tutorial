@@ -21,16 +21,25 @@ variables:
 workflow:
   # When pipeline is created (checks top-down, until first condition is met)
   rules:
-    # Run on merge requests
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # Run on commits to main (triggers pipeline when branch is merged to main;
-    # otherwise, not being triggered, since direct push to main is disabled)
+    # Run when a Merge Request is opened targeting the default branch
+    # (also triggers when a commit is pushed to the merged branch)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH
+
+    # Run when code is pushed directly to the default branch (after an MR is merged)
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # Do not run if pushing to a branch with an open merge request
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
-      when: never
-    # Run when pushing to a branch without an open MR
-    - if: $CI_COMMIT_BRANCH
+
+    # Do not run for any other branch pushes (implied default behavior)
+
+    # # Run on merge requests
+    # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # # Run on commits to main (triggers pipeline when branch is merged to main;
+    # # otherwise, not being triggered, since direct push to main is disabled)
+    # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # # Do not run if pushing to a branch with an open merge request
+    # - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+    #   when: never
+    # # Run when pushing to a branch without an open MR
+    # - if: $CI_COMMIT_BRANCH
 
 # Shared by the three check jobs. rules:changes is resolved from the repository
 # root, so it carries the app's prefix.
