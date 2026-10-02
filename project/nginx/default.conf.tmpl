@@ -1,0 +1,23 @@
+# Rendered by the deploy job into ${DEPLOY_DIR}/nginx/default.conf, which nginx
+# mounts as /etc/nginx/conf.d. The __UPSTREAM__ placeholder is replaced with the
+# colour the job is switching to, e.g. app-blue:8000.
+#
+# This file, not Docker state, is the source of truth for which colour is live:
+# nginx resolves an upstream name once at startup and keeps the address, so
+# switching colours means rewriting the server line and reloading.
+
+upstream api {
+    server __UPSTREAM__;
+}
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

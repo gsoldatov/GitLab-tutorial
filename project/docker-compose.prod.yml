@@ -1,0 +1,92 @@
+# The simulated production stack: nginx in front of a blue and a green API
+# container, one PostgreSQL database, and a one-shot migration service.
+#
+# It is never brought up as a whole by the pipeline. The deploy job starts nginx
+# and the target colour; the migrate job runs the `migrate` service on demand.
+# A plain `docker compose up` would start app-blue and app-green together, which
+# is not a state the deploy flow ever wants.
+#
+# Configuration comes from the generated project/.production.env, mirrored into
+# the deployment directory by setup_project.sh - a gitignored file is not in a CI
+# job's checkout, so the jobs read it through the host-mounted deployment
+# directory. `--env-file` feeds the ${...} interpolation below and the `env_file:`
+# entries feed the containers; the two keys under the `x-app-environment` anchor
+# are the containerized deployment's overrides of that file.
+
+name: tutorial-prod
+
+x-app-environment: &app-environment
+  # Inside the compose network the database is the `db` service on its own port,
+  # not the host-published dev database the env file names. `environment` wins
+  # over `env_file`, so changing these two keys in .production.env has no effect.
+  DB__HOST: db
+  DB__PORT: "5432"
+
+x-app: &app
+  image: ${APP_IMAGE}
+  env_file:
+    - "${DEPLOY_DIR}/.production.env"
+  environment: *app-environment
+  depends_on:
+    db:
+      condition: service_healthy
+  healthcheck:
+    # Static liveness, matching GET /health: this gates the blue/green switch on
+    # the new container answering HTTP, not on its database being reachable.
+    test:
+      - CMD
+      - python
+      - -c
+      - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${BACKEND__PORT:-8000}/health')"
+    interval: 3s
+    timeout: 3s
+    retries: 20
+    start_period: 5s
+
+services:
+  nginx:
+    image: nginx:1.29-alpine
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      # The deploy job renders the conf here and reloads nginx. The directory is
+      # host-owned and mounted at the identical path into every job, which is
+      # what makes the bind source resolve on both sides of the daemon.
+      - "${DEPLOY_DIR}/nginx:/etc/nginx/conf.d:ro"
+
+  app-blue:
+    <<: *app
+
+  app-green:
+    <<: *app
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB__DEFAULT_USERNAME}
+      POSTGRES_PASSWORD: ${DB__DEFAULT_PASSWORD}
+      POSTGRES_DB: ${DB__DEFAULT_DATABASE}
+    volumes:
+      - tutorial-prod-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB__DEFAULT_USERNAME} -d ${DB__DEFAULT_DATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot, run by the migrate job as
+  #   docker compose run --rm migrate sh -c "<bootstrap> && alembic ..."
+  # The profile keeps it out of a plain `up`; an explicitly targeted service is
+  # run regardless of its profile, and `db` has none so it starts as a dependency.
+  migrate:
+    image: ${APP_IMAGE}
+    env_file:
+      - "${DEPLOY_DIR}/.production.env"
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["tools"]
+
+volumes:
+  tutorial-prod-db-data:
