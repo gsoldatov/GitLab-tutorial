@@ -15,8 +15,11 @@ jobs reach the host's Docker daemon, and `setup_project.sh` registers the tutori
 project, protects `main` and refreshes the developer's clone. `project/` now holds a
 working FastAPI service and its test suite, verified against PostgreSQL; its check
 pipeline — lint, type checks and tests — has run green against the instance. The blue/green
-production stack and its two manual jobs, `deploy` and `migrate`, are in place; the
-scenarios that exercise them are still to come.
+production stack and its two manual jobs, `deploy` and `migrate`, are verified end to end
+against the instance: `deploy` cut blue over to green (nginx conf rewritten, the old colour
+stopped, `GET /health` answering throughout) and `migrate` upgraded `head`, downgraded to
+`base` and re-upgraded, with both jobs' guards refusing as intended. The scenarios that
+exercise them are still to come.
 
 ## Repository layout
 
