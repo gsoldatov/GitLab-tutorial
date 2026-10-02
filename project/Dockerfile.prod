@@ -1,0 +1,52 @@
+# Production image for the tutorial API.
+#
+# Two stages: the uv image resolves the locked dependencies into a virtualenv,
+# and the runtime stage receives only that virtualenv plus the source tree. Both
+# stages use the same interpreter path, which is what makes the copied virtualenv
+# usable in the second stage.
+#
+# Build from the repository root, because the build context is the project
+# directory, not the repository:
+#   docker build -f project/Dockerfile.prod -t gitlab-tutorial-api:<sha> project/
+
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
+
+WORKDIR /app
+
+# copy:            the runtime stage receives the virtualenv, and hardlinks into
+#                  the uv cache would not travel with it.
+# bytecode:        compile at install time, so the first request does not pay for
+#                  it.
+# no-python-downloads: the base image's interpreter is the pin; never fetch one.
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_NO_PYTHON_DOWNLOADS=1
+
+# Dependencies only. The project itself is not installed - it has no build
+# backend and is imported from the source tree - so this layer is cached until
+# the lockfile changes.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY src ./src
+
+
+FROM python:3.14-slim-bookworm AS runtime
+
+WORKDIR /app
+
+# The virtualenv first on PATH, so `python`, `alembic` (the migration job) and
+# the health check all resolve to it.
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+
+RUN useradd --create-home --uid 10001 app
+
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder --chown=app:app /app/src /app/src
+
+USER app
+
+EXPOSE 8000
+
+CMD ["python", "-m", "src.main"]

@@ -1,0 +1,20 @@
+# The build context is the project directory. Keep out everything that is not
+# runtime code or the lockfile.
+
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+tests/
+
+# Configuration never belongs in the image: the production stack supplies its
+# values at runtime from project/.production.env (see docker-compose.prod.yml).
+.env
+.production.env
+
+docker-compose*.yml
+.gitlab-ci.yml
+Dockerfile.prod
+.dockerignore
