@@ -3,8 +3,12 @@
 # points the project's ci_config_path at this file.
 #
 # Only the stages that have jobs. The check jobs run on every pipeline; the
-# deploy and migrate jobs are manual and live in the deploy stage.
-stages: [lint, test, deploy]
+# migrate and deploy jobs only in a PRODUCTION_JOBS run, migrate's stage first.
+stages: [lint, test, migrate, deploy]
+
+# PRODUCTION_JOBS is a run-pipeline variable, not a job: it skips the checks and
+# creates only the comma-separated names in it (migrate, deploy or
+# migrate,deploy). MR and push pipelines never carry it, so their checks run.
 
 variables:
   # The runner mounts a host directory at /cache (see the volumes in
@@ -52,6 +56,9 @@ workflow:
     - cd project
     - uv sync --frozen
   rules:
+    # A production-only run holds no checks.
+    - if: $PRODUCTION_JOBS
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [project/**/*]
     - if: $CI_COMMIT_BRANCH
@@ -107,43 +114,43 @@ test:
     - cp .env.example .env
     - uv run pytest
 
-# Manual production deployment, run by hand from a main pipeline. The order and
-# guards live in gitlab/lib/deployment.sh.
+# Manual production deployment, created only by a PRODUCTION_JOBS run. Its
+# guards and order live in gitlab/lib/deployment.sh.
 deploy:
   stage: deploy
   image: docker:24.0.5-git  # git, the Docker CLI and the Compose plugin
-  needs: []  # runnable immediately, without waiting for the checks
   resource_group: tutorial-production  # serialise with the migrate job
-  allow_failure: true  # optional: a merged main pipeline is green without it
   variables:
     TARGET_REF: ""  # commit SHA or branch; empty means this commit
     DEPLOY_COLOR: ""  # blue or green
     NGINX_PORT: "8080"  # the compose file's published nginx port
     GIT_DEPTH: "0"  # resolving an arbitrary commit needs full history
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # Only in a run that names deploy; blocking until played.
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $PRODUCTION_JOBS =~ /(^|,)\s*deploy\s*(,|$)/
       when: manual
+      allow_failure: false
   script:
     # Read into memory: the script checks out TARGET_REF, rewriting the working
     # tree under a shell that would otherwise be reading the file from disk.
     - sh -c "$(cat gitlab/lib/deployment.sh)"
 
-# Manual database migration, run by hand from a main pipeline. The order and
-# guards live in gitlab/lib/migration.sh.
+# Manual database migration, created only by a PRODUCTION_JOBS run. Its guards
+# live in gitlab/lib/migration.sh.
 migrate:
-  stage: deploy
+  stage: migrate
   image: docker:24.0.5-git  # git, the Docker CLI and the Compose plugin
-  needs: []  # runnable immediately, without waiting for the checks
   resource_group: tutorial-production  # serialise with the deploy job
-  allow_failure: true  # optional: a merged main pipeline is green without it
   variables:
     TARGET_REF: ""  # commit SHA or branch; empty means this commit
     DIRECTION: "upgrade"  # upgrade or downgrade
     REVISION: "head"  # alembic revision; downgrade needs an explicit one
     GIT_DEPTH: "0"  # resolving an arbitrary commit needs full history
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # Only in a run that names migrate; blocking, so deploy's stage waits for it.
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $PRODUCTION_JOBS =~ /(^|,)\s*migrate\s*(,|$)/
       when: manual
+      allow_failure: false
   script:
     # Read into memory: the script checks out TARGET_REF, rewriting the working tree.
     - sh -c "$(cat gitlab/lib/migration.sh)"

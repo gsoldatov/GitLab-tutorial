@@ -233,12 +233,18 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - The check jobs take their caches from the mounted `/cache` rather than a `cache:`
   keyword: `UV_CACHE_DIR` at the top of the file, `RUFF_CACHE_DIR` and `MYPY_CACHE_DIR`
   in the `lint` and `typecheck` jobs. See Job caches above.
-- Stages: lint, test and deploy. `lint` and `typecheck` sit in the lint stage, `test` in
-  the test stage, and the two manual jobs in the deploy stage.
-- `deploy` and `migrate` are `when: manual`, `needs: []` and default-branch-only, so a
-  merged main pipeline is green without them and either can run without waiting for the
-  checks. Their bodies live in `gitlab/lib/deployment.sh` and `gitlab/lib/migration.sh`,
-  read by the job with `sh -c "$(cat …)"` — see Images below.
+- Stages: lint, test, migrate and deploy. `lint` and `typecheck` sit in the lint stage,
+  `test` in the test stage, and the production jobs in the migrate and deploy stages, one
+  each so migration precedes deployment.
+- `deploy` and `migrate` exist only in a production run (below): blocking `when: manual`,
+  default-branch-only. Their bodies live in `gitlab/lib/deployment.sh` and
+  `gitlab/lib/migration.sh`, read by the job with `sh -c "$(cat …)"` — see Images below.
+- A normal main pipeline runs the checks only.
+- `PRODUCTION_JOBS` is a run-pipeline variable (Run pipeline form or API), comma-separated
+  `migrate` / `deploy`, that skips the checks and creates only the named jobs. A combined
+  `migrate,deploy` run cannot reach the deploy stage until the migration succeeds. It is
+  deliberately not a project-level CI/CD variable, so no auto-created MR or push pipeline
+  can skip its checks.
 - `resource_group` on both, so two pipelines cannot race the same nginx switch or the
   same Alembic head.
 - No GitLab environments. Deploy state is the nginx conf.
