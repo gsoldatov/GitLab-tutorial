@@ -15,7 +15,7 @@ jobs reach the host's Docker daemon, and `setup_project.sh` registers the tutori
 project, protects `main` and refreshes the developer's clone. `project/` now holds a
 working FastAPI service and its test suite, verified against PostgreSQL; its check
 pipeline — lint, type checks and tests — has run green against the instance. The blue/green
-production stack and its two manual jobs, `deploy` and `migrate`, are verified end to end
+production stack and its two production jobs, `deploy` and `migrate`, are verified end to end
 against the instance: `deploy` cut blue over to green (nginx conf rewritten, the old colour
 stopped, `GET /health` answering throughout) and `migrate` upgraded `head`, downgraded to
 `base` and re-upgraded, with both jobs' guards refusing as intended. The scenarios that
@@ -30,7 +30,7 @@ exercise them are still to come.
   - `cleanup.sh` — the full teardown: every container, volume and network this repo
     created, the API images its jobs built, plus all of `temp/`;
   - `lib/common.sh` — shared helpers, sourced by the scripts;
-  - `lib/deployment.sh` and `lib/migration.sh` — the bodies of the two manual jobs. Unlike
+  - `lib/deployment.sh` and `lib/migration.sh` — the bodies of the two production jobs. Unlike
     `common.sh` they run inside a job container, not on the host;
   - `templates/` — `gitlab.rb.tmpl` and `runner-config.toml.tmpl`;
   - `test/docker-smoke-test.sh` — the proof that jobs reach the host daemon;
@@ -236,13 +236,14 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 - Stages: lint, test, migrate and deploy. `lint` and `typecheck` sit in the lint stage,
   `test` in the test stage, and the production jobs in the migrate and deploy stages, one
   each so migration precedes deployment.
-- `deploy` and `migrate` exist only in a production run (below): blocking `when: manual`,
-  default-branch-only. Their bodies live in `gitlab/lib/deployment.sh` and
+- `deploy` and `migrate` exist only in a production run (below), default-branch-only, and
+  run `on_success` with no play step: creating the pipeline with `PRODUCTION_JOBS` is what
+  starts them. Their bodies live in `gitlab/lib/deployment.sh` and
   `gitlab/lib/migration.sh`, read by the job with `sh -c "$(cat …)"` — see Images below.
 - A normal main pipeline runs the checks only.
 - `PRODUCTION_JOBS` is a run-pipeline variable (Run pipeline form or API), comma-separated
   `migrate` / `deploy`, that skips the checks and creates only the named jobs. A combined
-  `migrate,deploy` run cannot reach the deploy stage until the migration succeeds. It is
+  `migrate,deploy` run migrates first and then deploys, purely by stage order. It is
   deliberately not a project-level CI/CD variable, so no auto-created MR or push pipeline
   can skip its checks.
 - `resource_group` on both, so two pipelines cannot race the same nginx switch or the
@@ -286,7 +287,7 @@ inside Rails, so the helper wrapping it is `rails_exec` in `gitlab/lib/common.sh
 
 ### Migrations
 
-- One manual `migrate` job on main with `TARGET_REF`, `DIRECTION` (upgrade or downgrade)
+- One `migrate` job on main with `TARGET_REF`, `DIRECTION` (upgrade or downgrade)
   and `REVISION`, run via `docker compose run --rm migrate` on the **image of the target
   commit** — Alembic ships inside the image, so the revision tree always matches the
   deployed code. Running migrations from a different commit's checkout is the trap to

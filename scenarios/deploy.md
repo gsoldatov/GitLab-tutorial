@@ -8,8 +8,9 @@ The job runs on main branch together or after migration job and deploys a specif
 
 The `deploy` job exists only in a production run: create the pipeline with `Run pipeline` on
 `main` and the pipeline variable `PRODUCTION_JOBS` - `deploy` alone, or `migrate,deploy`
-together, where the migration stage runs first and must succeed before the deploy job is
-unlocked. Set the job's own variables in the same form.
+together. Creating the pipeline runs the jobs - there is no play step. With `migrate,deploy`
+the migration stage runs first and `deploy` follows once it succeeds; with `deploy` alone,
+`deploy` starts on its own. Set the job's own variables in the same form.
 
 1. Run the initial deployment, together with DB migrations from GitLab's UI as Owner. The following variables should be set:
     - `PRODUCTION_JOBS=migrate,deploy`
