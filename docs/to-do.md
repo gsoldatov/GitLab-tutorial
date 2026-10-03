@@ -13,8 +13,8 @@
 - use-case scenario harnesses (scripts + manual instructions for adding merge requests, deploying to production, migrating db).
 
 ## Additional
-- security checks (SAST scan);
-- automatic versioning;
+? security checks (SAST scan);
+? automatic versioning;
 ? GitLab & Docker cleanup;
 
 # Detailed To-Dos
@@ -138,11 +138,23 @@ x test scripts:
 + remove prod containers and images in cleanup script;
 + ensure all runner containers are deleted by cleanup;  // the runner-managed label is swept for containers and cache volumes
 
-- implement scenarios for testing deployment:
-    - scenarios:
-        - apply db migration (manually, upgrade / downgrade);
-        - deploy a commit to production (no prod started, green -> blue, blue -> green);
++ test deployment & migration jobs manually:
+    + developer:
+        + can run other jobs during merge requests;
+        + can't run deployment & migration in MRs;      // enforced by job rules for running D & M on main only
+        + can't start a pipeline on main;     // protected branch does not allow running pipelines by developer
+    + owner:
+        + can run deployment & migration on main;
+    + deployment & migration jobs:
+        + can be run on main manually;
+        + deployment & migration can run together, with migration being first;
+        + deployment & migration do not trigger other jobs;
+        
+        x only main branch can be deployed; // D & M can start on main branch only, but can have arbitrary git ref to run on
+
++ implement scenarios for testing deployment:
+    + scenarios:
+        + apply db migration (manually, upgrade / downgrade);
+        + deploy a commit to production (no prod started, green -> blue, blue -> green);
 
 - complete readme file;
-
-? additional;
