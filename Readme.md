@@ -1,72 +1,41 @@
-TODO complete the file after project is finished:
-- description
-- architecture
-- users
-- project layout & pipeline
-- setup
-- how to access GL outside of VM
-- scenario runs
-- other commands
-- how to run tests and linting locally
-? review reorganize commands
-???
+# Overview
+
+A tutorial project focused on setting up and configuring a containerized GitLab deployment
+and using it to automate CI/CD of a Python API project.
+
+All project components are run via Docker on a single machine, to keep things simple.
+The components, themselves, are:
+- GitLab instance;
+- GitLab Runner;
+- GitLab Runner executor containers, which are spinned up by Runner via Docker outside of Docker;
+- Python API project dev env database (for running tests locally);
+- Python API blue / green "production" deployment:
+    - Nginx reverse proxy;
+    - blue / green API containers;
+    - database.
+
+GitLab is configured to have the following users:
+- Admin (used for running setup scripts);
+- Owner (maintainer of the Python API project);
+- Developer (developer, who creates merge requests in the Python API project).
+
+Python API project, managed by GitLab, is located in `project` dir (and is, de-facto, a part of this project).
+Its stack includes:
+- Python 3.14;
+- uv;
+- FastAPI;
+- PostgreSQL + SQLAlchemy + Alembic;
+- pytest.
+
+# Project Structure
+- `gitlab/`: GitLab's configuration scripts, templates, .env and Docker Compose files;
+- `project/`: Python API project source code, tests, .env and Docker Compose files;
+- `scenarios/`: instructions on how to run manual tests of CI pipeline;
+- `temp/`: gitignored directory that container various container mountpoints
+and files / subdirectories used when running the project setup.
 
 
-# Setup Locally
-
-```bash
-# Create GitLab config
-cp gitlab/.env.example gitlab/.env
-
-# Setup and configure GitLab and a containerized runner
-# Script is idempotent and can be called again to update GL's configuration.
-./gitlab/setup_gitlab.sh
-
-# Register the API project in GitLab and create its copy in temp dir,
-# which can be used for testing the GL setup.
-./gitlab/setup_project.sh
-```
-
-# Work Scenarios
-
-`scenarios/` directory contains contains a set of instructions on how to work with the project managed by GitLab. See [scenarios/README.md](scenarios/README.md) for details.
-
-# Reset & Teardown
-
-```bash
-# Reset the project in GitLab and temp dir to its default (remove any made commits to main
-# branch, etc.), tear down the production deployment, and delete the images built for it.
-./gitlab/setup_project.sh
-
-# Remove all project containers, volumes, built API images and temp files
-./gitlab/cleanup.sh
-```
-
-# API Project Local Commands
-
-```bash
-# Start the dev database (reads project/.env)
-docker compose -f project/docker-compose.dev.yml up -d db
-
-# Stop the dev database, keeping its data volume
-docker compose -f project/docker-compose.dev.yml down
-
-# Stop the dev database and delete its data volume
-docker compose -f project/docker-compose.dev.yml down -v
-
-# Run the test suite (the dev database must be running; reads project/.env)
-cd project && uv run pytest
-```
-
-# Other Commands
-```bash
-# Stop GitLab & its runner, keeping their state in temp/
-docker compose -f gitlab/docker-compose.yml --env-file gitlab/.env down
-```
-
-# `temp/` Directory Structure
-
-All files created during GitLab setup and scenario runs are stored here. A `->` marks where a directory is mounted inside a container. `gitlab/cleanup.sh` empties the whole directory; nothing here survives a full teardown.
+## Temp Directory Structure
 
 ```
 temp/
@@ -79,6 +48,91 @@ temp/
 ├── gitlab_credentials/      # admin, owner and developer PATs, plus the runner's glrt- token, mode 0600
 ├── repo_copies/
 │   └── dev/                 # the developer's clone of the GitLab project: branches for a scenario are pushed from here
+├── cache/                   # directory mounted in job containers, which contains various caches used by CI jobs (uv, Ruff, MyPy)
 └── deployment/              #   -> job containers, at this same absolute path
     └── nginx/               #   -> job containers, via the mount above: Nginx deployment configuration is placed here
+```
+
+# Work with Project
+
+## Setup
+
+```bash
+# Create GitLab config
+cp gitlab/.env.example gitlab/.env
+
+# Setup and configure GitLab and a containerized runner
+# Script is idempotent and can be called again to update GL's configuration.
+./gitlab/setup_gitlab.sh
+
+# Create project dev & prod configs
+# (or skip to let `setup_project.sh` create configs with default values)
+cp project/.env.example project/.env
+cp project/.env.example project/production.env
+
+# Register the API project in GitLab and create its copy in temp dir,
+# which can be used for testing the GL setup.
+./gitlab/setup_project.sh
+```
+
+If a project is run inside a VM, `GITLAB_EXTERNAL_HOST` in `gitlab/.env` may be set
+to allow browsing GitLab UI outside of the VM.
+
+## Test Scenarios
+
+`scenarios/` directory contains several scenarios for testing API project's CI pipeline.
+See [scenarios readme](scenarios/Readme.md) for details on how to run them.
+
+# Additional Commands
+
+## GitLab Configuration Update
+
+```bash
+# If GitLab's configuration updated, it can be propagated to existing deployment
+# via the same setup script.
+./gitlab/setup_gitlab.sh
+```
+
+## Project Reset
+
+```bash
+# Reset the project in GitLab and temp dir to its default (remove any made commits to main
+# branch, etc.), tear down the production deployment, and delete the images built for it.
+./gitlab/setup_project.sh
+```
+
+## Teardown
+
+```bash
+# Remove all project containers, volumes, built API images and temp files
+./gitlab/cleanup.sh
+```
+
+## API Project Local Commands
+
+Note: `project/.env` is expected before running these commands.
+
+`uv` commands must be invoked from `project/` directory.
+
+```bash
+# Setup dependencies & venv
+uv sync
+
+# Start the dev database
+docker compose -f project/docker-compose.dev.yml up -d db
+
+# Configure dev database & run migrations
+uv run python src/db/scripts/app_db.py
+uv run alembic -c src/db/alembic/alembic.ini upgrade head
+
+# Stop the dev database and delete its data volume
+docker compose -f project/docker-compose.dev.yml down -v
+
+# Run linter and type checker
+uv run ruff check src
+uv run ruff format --check src
+uv run mypy
+
+# Run the test suite (the dev database must be running; reads project/.env)
+uv run pytest
 ```

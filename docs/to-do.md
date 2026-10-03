@@ -13,6 +13,7 @@
 - use-case scenario harnesses (scripts + manual instructions for adding merge requests, deploying to production, migrating db).
 
 ## Additional
+
 ? security checks (SAST scan);
 ? automatic versioning;
 ? GitLab & Docker cleanup;
@@ -157,4 +158,4 @@ x test scripts:
         + apply db migration (manually, upgrade / downgrade);
         + deploy a commit to production (no prod started, green -> blue, blue -> green);
 
-- complete readme file;
++ complete readme file;
