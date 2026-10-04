@@ -31,9 +31,16 @@ services:
       - "${GITLAB_SSH_PORT}:22"
 
     volumes:
-      - ../temp/gitlab/etc:/etc/gitlab
-      - ../temp/gitlab/opt:/var/opt/gitlab
-      - ../temp/gitlab/log:/var/log/gitlab
+      # Ubuntu Desktop + Docker Desktop do not allow to change ownership
+      # of mounted host directories from within a container,
+      # so named volumes & mounted config file only are used instead
+      - gitlab_config:/etc/gitlab
+      - gitlab_data:/var/opt/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - ${GITLAB_CONFIG_PATH}:/etc/gitlab/gitlab.rb      
+      # - ../temp/gitlab/etc:/etc/gitlab
+      # - ../temp/gitlab/opt:/var/opt/gitlab
+      # - ../temp/gitlab/log:/var/log/gitlab
 
   gitlab-runner:
     image: gitlab/gitlab-runner:${GITLAB_RUNNER_IMAGE_TAG}
@@ -49,9 +56,19 @@ services:
         required: false
 
     volumes:
-      # config.toml is rendered here without the token inside it.
-      - ../temp/gitlab/runner:/etc/gitlab-runner
+      # Ubuntu Desktop + Docker Desktop do not allow to change ownership
+      # of mounted host directories from within a container,
+      # config file is mounted instead of its directory
+      - ${GITLAB_RUNNER_CONFIG_PATH}:/etc/gitlab-runner/config.toml
+      # # config.toml is rendered here without the token inside it.
+      # - ../temp/gitlab/runner:/etc/gitlab-runner
+
       # The docker executor creates the job containers on the host's daemon, and
       # it runs inside this container, so the socket has to be reachable here as
       # well as inside those jobs (and their services).
       - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  gitlab_config:
+  gitlab_data:
+  gitlab_logs:

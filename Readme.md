@@ -37,6 +37,12 @@ and files / subdirectories used when running the project setup.
 
 ## Temp Directory Structure
 
+NOTE: the tree listed below was used when GitLab's & GitLab Runner's directories were mounted on host.
+This setup showed to have some issues, related to changing ownership of the directories from within the containers.
+As a result, GitLab & Runner now uses named volumes & binds config files directly.
+`temp/gitlab/opt/` and `temp/gitlab/runner/` are no longer in use. 
+`temp/gitlab/` structure may be simplified in the future.
+
 ```
 temp/
 ├── gitlab/                  # GitLab's own state

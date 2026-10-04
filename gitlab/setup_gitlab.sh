@@ -21,6 +21,11 @@ EXTERNAL_HOST=""
 
 TOKEN_EXPIRY="$(date -d "+$TOKEN_EXPIRY_YEARS year" +%F)"
 
+# Rendered config paths exported for Docker Compose to use them
+# for mounting GitLab's & Runner's configs
+export GITLAB_CONFIG_PATH="$TEMP_GITLAB_ETC/gitlab.rb"
+export GITLAB_RUNNER_CONFIG_PATH="$TEMP_GITLAB_RUNNER/config.toml"
+
 
 usage() {
   cat <<'EOF'

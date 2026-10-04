@@ -159,3 +159,9 @@ x test scripts:
         + deploy a commit to production (no prod started, green -> blue, blue -> green);
 
 + complete readme file;
+
+# More To-Dos
+- review switch to named volume usage for GitLab & GitLab Runner containers:
+    - explore potential issues;
+    - update `temp/` dir structure (simplify by removing unused directories & files);
+    - update project docs;
