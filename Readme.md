@@ -64,6 +64,12 @@ temp/
 ## Setup
 
 ```bash
+# Pull additional branches to local repo
+# (they will be used in test scenarios)
+for branch in $(git branch -r | grep -v '\->'); do
+    git branch --track "${branch#origin/}" "$branch"
+done
+
 # Create GitLab config
 cp gitlab/.env.example gitlab/.env
 
