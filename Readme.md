@@ -71,6 +71,7 @@ for branch in $(git branch -r | grep -v '\->'); do
 done
 
 # Create GitLab config
+# (see a note on GITLAB_EXTERNAL_HOST below)
 cp gitlab/.env.example gitlab/.env
 
 # Setup and configure GitLab and a containerized runner
@@ -87,8 +88,17 @@ cp project/.env.example project/production.env
 ./gitlab/setup_project.sh
 ```
 
-If a project is run inside a VM, `GITLAB_EXTERNAL_HOST` in `gitlab/.env` may be set
-to allow browsing GitLab UI outside of the VM.
+### `GITLAB_EXTERNAL_HOST` Setting in `gitlab/.env`
+
+`GITLAB_EXTERNAL_HOST` is the host part of `external_url` setting or GitLab.
+If left omitted, it will be set to host's docker0 bridge gateway.
+This may not work and require an explicit override in the following cases:
+
+- when running the setup inside a VM, it may be configured to use a host-only network,
+and `GITLAB_EXTERNAL_HOST` can then be set to the VM's IP in that network;
+- when running the setup in Docker Desktop, its default network bridge is not visible
+from the host, so `GITLAB_EXTERNAL_HOST` should be set to the IP of the host machine
+in its local network.
 
 ## Test Scenarios
 
