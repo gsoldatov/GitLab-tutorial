@@ -12,6 +12,9 @@ together. Creating the pipeline runs the jobs - there is no play step. With `mig
 the migration stage runs first and `deploy` follows once it succeeds; with `deploy` alone,
 `deploy` starts on its own. Set the job's own variables in the same form.
 
+`NGINX_PORT` variable may be optionally set in each step of this scenario 
+to override the default Nginx port value `8080`, if that port is in use.
+
 1. Run the initial deployment, together with DB migrations from GitLab's UI as Owner. The following variables should be set:
     - `PRODUCTION_JOBS=migrate,deploy`
     - `DEPLOY_COLOR=blue`
